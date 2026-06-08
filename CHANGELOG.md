@@ -20,3 +20,8 @@ The format follows the spirit of [Keep a Changelog](https://keepachangelog.com/e
 - In-memory recurring scan scheduling from the dashboard.
 - Example `systemd` unit for long-running local deployment.
 - Project documentation, safety scope, quick start, report format, and responsible-use guidance.
+
+### Changed
+
+- Made the dashboard's visual report the primary report experience.
+- Added readable report sections for priority findings, passed checks, device cards, open ports, manual checklist items, and direct HTTP/HTTPS device panel links.

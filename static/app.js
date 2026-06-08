@@ -11,6 +11,9 @@ const serviceStatus = document.querySelector("#serviceStatus");
 const reportsEl = document.querySelector("#reports");
 const schedulesEl = document.querySelector("#schedules");
 const refreshReports = document.querySelector("#refreshReports");
+const reportSubtitle = document.querySelector("#reportSubtitle");
+const reportStatus = document.querySelector("#reportStatus");
+const reportContent = document.querySelector("#reportContent");
 
 const hostsCount = document.querySelector("#hostsCount");
 const portsCount = document.querySelector("#portsCount");
@@ -93,7 +96,8 @@ function handleEvent(payload, scanId) {
     const report = payload.data;
     applySummary(report.summary || {});
     setStatus("concluido", statusClass(report.summary?.overall_status));
-    addLine("relatorio", `Markdown: /api/scans/${scanId}/report.md`);
+    renderReport(report);
+    addLine("relatorio", "Relatorio visual atualizado no painel.");
     loadReports();
   }
 
@@ -186,11 +190,214 @@ async function loadReports() {
     item.innerHTML = `
       <strong>${escapeHtml(report.target || "-")} · ${escapeHtml(report.status || "-")}</strong>
       <p>${formatDate(report.finished_at)} · hosts: ${report.hosts ?? 0} · altos: ${(counts.critical || 0) + (counts.high || 0)}</p>
+      <button class="secondary" data-view-report="${report.id}">Ver painel</button>
       <a href="${report.markdown_url}">Markdown</a>
       <a href="${report.json_url}">JSON</a>
     `;
     reportsEl.appendChild(item);
   }
+
+  reportsEl.querySelectorAll("[data-view-report]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await openSavedReport(button.dataset.viewReport);
+    });
+  });
+}
+
+async function openSavedReport(scanId) {
+  const response = await fetch(`/api/scans/${scanId}/report.json`);
+  if (!response.ok) {
+    reportContent.className = "empty-state";
+    reportContent.textContent = "Nao foi possivel abrir este relatorio.";
+    return;
+  }
+
+  const report = await response.json();
+  renderReport(report);
+  document.querySelector("#visualReport").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderReport(report) {
+  const summary = report.summary || {};
+  const counts = summary.findings_by_severity || {};
+  const highTotal = (counts.critical || 0) + (counts.high || 0);
+  const status = summary.overall_status || "ok";
+  reportSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at)} · ${summary.hosts_found || 0} hosts`;
+  reportStatus.textContent = status;
+  reportStatus.className = `status-pill ${statusClass(status)}`;
+  reportContent.className = "report-body";
+
+  const findings = report.findings || [];
+  const hosts = report.hosts || [];
+  const hostMap = new Map(hosts.map((host) => [host.ip, host]));
+
+  reportContent.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", status)}
+      ${metricCard("Hosts ativos", summary.hosts_found || 0)}
+      ${metricCard("Portas abertas", summary.open_ports || 0)}
+      ${metricCard("Criticos/altos", highTotal)}
+    </div>
+
+    <div class="report-section">
+      <h3>Prioridade de correção</h3>
+      <div class="finding-list">
+        ${findings.length ? findings.map((finding) => findingCard(finding, hostMap)).join("") : '<div class="empty-state">Nenhum achado relevante nos testes automaticos.</div>'}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Acertos encontrados</h3>
+      <div class="pass-grid">
+        ${passCards(report).join("")}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Dispositivos e atalhos</h3>
+      <div class="host-grid">
+        ${hosts.length ? hosts.map(hostCard).join("") : '<div class="empty-state">Nenhum host ativo encontrado.</div>'}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Checklist manual</h3>
+      <div class="checklist">
+        ${(report.manual_checklist || []).map(checkItem).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function metricCard(label, value) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function findingCard(finding, hostMap) {
+  const targetLink = linkForFinding(finding, hostMap);
+  return `
+    <article class="finding ${escapeHtml(finding.severity)}">
+      <div>
+        <span class="severity">${escapeHtml(finding.severity)}</span>
+        <h4>${escapeHtml(finding.title)}</h4>
+        <p><strong>Alvo:</strong> ${targetLink}</p>
+        <p>${escapeHtml(finding.detail)}</p>
+        <p><strong>Correção:</strong> ${escapeHtml(finding.correction)}</p>
+      </div>
+    </article>
+  `;
+}
+
+function linkForFinding(finding, hostMap) {
+  const target = finding.target || "";
+  const match = target.match(/^(\d+\.\d+\.\d+\.\d+)(?::(\d+))?$/);
+  if (!match) {
+    return `<code>${escapeHtml(target)}</code>`;
+  }
+
+  const ip = match[1];
+  const port = Number(match[2]);
+  if (port && isWebPort(port)) {
+    return `<a href="${deviceUrl(ip, port)}" target="_blank" rel="noopener noreferrer">${escapeHtml(target)} abrir painel</a>`;
+  }
+
+  const host = hostMap.get(ip);
+  const firstPanel = host ? webPorts(host)[0] : null;
+  if (firstPanel) {
+    return `<code>${escapeHtml(target)}</code> · <a href="${deviceUrl(ip, firstPanel.port)}" target="_blank" rel="noopener noreferrer">abrir dispositivo</a>`;
+  }
+
+  return `<code>${escapeHtml(target)}</code>`;
+}
+
+function passCards(report) {
+  const hosts = report.hosts || [];
+  const allPorts = hosts.flatMap((host) => host.open_ports || []);
+  const findings = report.findings || [];
+  const hasSeverity = (severity) => findings.some((finding) => finding.severity === severity);
+  const hasPort = (port) => allPorts.some((item) => item.port === port);
+  const cards = [
+    passCard(!hasSeverity("critical"), "Sem crítico automático", "Nenhum achado crítico foi detectado pelos testes leves."),
+    passCard(!hasPort(23), "Telnet não detectado", "Boa notícia: a porta Telnet não apareceu aberta nos hosts testados."),
+    passCard(!hasPort(21), "FTP não detectado", "FTP não apareceu aberto nos hosts testados."),
+    passCard(!hasPort(3389), "RDP não detectado", "RDP não apareceu aberto nos hosts testados."),
+  ];
+  return cards;
+}
+
+function passCard(ok, title, text) {
+  return `
+    <div class="pass-card ${ok ? "ok" : "warn"}">
+      <strong>${ok ? "Passou" : "Revisar"}</strong>
+      <h4>${escapeHtml(title)}</h4>
+      <p>${escapeHtml(text)}</p>
+    </div>
+  `;
+}
+
+function hostCard(host) {
+  const ports = host.open_ports || [];
+  const links = webPorts(host);
+  return `
+    <article class="host-card">
+      <div class="host-head">
+        <div>
+          <strong>${escapeHtml(host.ip)}</strong>
+          <p>${escapeHtml(host.hostname || host.mac || "Dispositivo sem nome")}</p>
+        </div>
+        <span>${ports.length} porta(s)</span>
+      </div>
+      <div class="role-list">
+        ${(host.role_hints || []).map((role) => `<code>${escapeHtml(role)}</code>`).join("") || "<code>sem perfil claro</code>"}
+      </div>
+      <div class="port-list">
+        ${ports.length ? ports.map(portChip).join("") : "<span>Nenhuma porta comum aberta.</span>"}
+      </div>
+      <div class="device-links">
+        ${links.length ? links.map((item) => `<a href="${deviceUrl(host.ip, item.port)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>`).join("") : '<span>Sem painel web detectado.</span>'}
+      </div>
+    </article>
+  `;
+}
+
+function portChip(port) {
+  const label = `${port.port}/${port.service}`;
+  return `<span class="port-chip ${escapeHtml(port.severity)}">${escapeHtml(label)}</span>`;
+}
+
+function webPorts(host) {
+  return (host.open_ports || [])
+    .filter((port) => isWebPort(port.port))
+    .map((port) => ({ port: port.port, label: `${schemeForPort(port.port).toUpperCase()} ${port.port}` }));
+}
+
+function isWebPort(port) {
+  return [80, 443, 5000, 5001, 8000, 8080, 8443, 8888, 9000].includes(Number(port));
+}
+
+function schemeForPort(port) {
+  return [443, 5001, 8443].includes(Number(port)) ? "https" : "http";
+}
+
+function deviceUrl(ip, port) {
+  const scheme = schemeForPort(port);
+  const defaultPort = (scheme === "http" && Number(port) === 80) || (scheme === "https" && Number(port) === 443);
+  return `${scheme}://${ip}${defaultPort ? "" : `:${port}`}`;
+}
+
+function checkItem(item) {
+  return `
+    <div class="check-item">
+      <strong>${escapeHtml(item.item)}</strong>
+      <p>${escapeHtml(item.why)}</p>
+      <p><strong>Ação:</strong> ${escapeHtml(item.action)}</p>
+    </div>
+  `;
 }
 
 function resetLive() {

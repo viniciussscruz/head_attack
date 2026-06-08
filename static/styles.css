@@ -77,11 +77,13 @@ h2 {
 }
 
 .live,
-.reports {
+.reports,
+.report-detail {
   min-width: 0;
 }
 
-.reports {
+.reports,
+.report-detail {
   grid-column: 2;
 }
 
@@ -296,6 +298,7 @@ button.secondary:hover {
 }
 
 .item a + a,
+.item button + a,
 .item button {
   margin-left: 10px;
 }
@@ -312,6 +315,212 @@ code {
   background: #eef2f7;
 }
 
+.empty-state {
+  border: 1px dashed #c8cfdb;
+  border-radius: 8px;
+  padding: 18px;
+  color: var(--muted);
+  background: #fbfcfe;
+}
+
+.report-body {
+  display: grid;
+  gap: 18px;
+}
+
+.report-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-metrics div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px;
+  background: #fbfcfe;
+}
+
+.report-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.report-metrics strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.report-section {
+  display: grid;
+  gap: 10px;
+}
+
+.report-section h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.finding-list,
+.host-grid,
+.pass-grid,
+.checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.finding {
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 8px;
+  padding: 13px;
+  background: #ffffff;
+}
+
+.finding.critical,
+.finding.high {
+  border-left-color: var(--bad);
+}
+
+.finding.medium {
+  border-left-color: var(--warn);
+}
+
+.finding.low,
+.finding.info {
+  border-left-color: var(--accent);
+}
+
+.finding h4,
+.pass-card h4 {
+  margin: 6px 0 8px;
+  font-size: 16px;
+}
+
+.finding p,
+.pass-card p,
+.host-card p,
+.check-item p {
+  margin: 0 0 8px;
+  color: #475467;
+}
+
+.finding a,
+.device-links a {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: #e8f2fb;
+  color: var(--accent-dark);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.severity {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #eef2f7;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pass-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pass-card,
+.host-card,
+.check-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px;
+  background: #fbfcfe;
+}
+
+.pass-card.ok {
+  border-color: #b9e7ce;
+  background: #f1fbf6;
+}
+
+.pass-card.warn {
+  border-color: #ffd8a8;
+  background: #fff8ee;
+}
+
+.pass-card > strong {
+  color: var(--ok);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.pass-card.warn > strong {
+  color: var(--warn);
+}
+
+.host-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.host-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.host-head strong {
+  font-size: 17px;
+}
+
+.host-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.role-list,
+.port-list,
+.device-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.port-chip {
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #eef2f7;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.port-chip.critical,
+.port-chip.high {
+  background: #fee4e2;
+  color: var(--bad);
+}
+
+.port-chip.medium {
+  background: #fff4e5;
+  color: var(--warn);
+}
+
+.device-links span,
+.port-list span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .topbar {
     align-items: flex-start;
@@ -319,16 +528,29 @@ code {
   }
 
   .layout,
-  .reports {
+  .reports,
+  .report-detail {
     grid-template-columns: 1fr;
     grid-column: auto;
   }
 
-  .summary-grid {
+  .summary-grid,
+  .report-metrics,
+  .pass-grid,
+  .host-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .summary-grid,
+  .report-metrics,
+  .pass-grid,
+  .host-grid {
     grid-template-columns: 1fr;
   }
 }

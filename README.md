@@ -1,6 +1,6 @@
 # Head Attack
 
-Head Attack is a local web service for authorized, defensive network auditing. It discovers live hosts, checks common exposed services, streams test progress in real time, and generates JSON and Markdown reports with findings, successful checks, and suggested fixes.
+Head Attack is a local web service for authorized, defensive network auditing. It discovers live hosts, checks common exposed services, streams test progress in real time, and presents a visual report with findings, successful checks, device shortcuts, and suggested fixes.
 
 The project is designed for home labs, small office networks, IoT-heavy environments, and private Tailscale ranges where you have explicit authorization to test.
 
@@ -24,7 +24,8 @@ The default maximum target size is 512 IPv4 addresses per scan. The scanner does
 - Common service checks for routers, repeaters, cameras, DVRs, printers, SMB, RDP, MQTT, SSH, FTP, Telnet, and web panels.
 - Finding severity classification: `critical`, `high`, `medium`, `low`, and `info`.
 - Practical remediation guidance for each finding.
-- Markdown and JSON report generation.
+- Visual dashboard reports with prioritized findings, passed checks, affected devices, and direct HTTP/HTTPS shortcuts when a device panel is detected.
+- Markdown and JSON report files for export and persistence.
 - In-memory recurring scan scheduling.
 - Example `systemd` service for running the dashboard continuously.
 
@@ -101,7 +102,15 @@ Update the unit file if you deploy it somewhere else.
 
 ## Reports
 
-Reports are written to:
+Reports can be opened directly in the dashboard. The visual report shows:
+
+- Top-level status and severity counts.
+- Prioritized findings with remediation guidance.
+- Passed checks that help confirm what is already healthy.
+- Device cards with open ports and direct links to detected web panels.
+- Manual checks that still need router or Wi-Fi controller access.
+
+JSON and Markdown exports are also written to:
 
 ```text
 reports/
@@ -112,7 +121,7 @@ Each scan creates:
 - `reports/<scan_id>.json`
 - `reports/<scan_id>.md`
 
-The Markdown report is meant for quick reading. The JSON report is useful for automation, diffing, or feeding another reporting pipeline.
+The visual report is the primary reading experience. The Markdown report is useful for sharing a quick text summary, and the JSON report is useful for automation, diffing, or feeding another reporting pipeline.
 
 ## Dashboard Workflow
 

@@ -96,10 +96,23 @@
         <div class="panel-head">
           <div>
             <h2>Relatórios</h2>
-            <p>JSON e Markdown ficam salvos em <code>reports/</code>.</p>
+            <p>Abra o painel visual para entender riscos, acertos e links de correção.</p>
           </div>
         </div>
         <div id="reports" class="report-list"></div>
+      </section>
+
+      <section class="panel report-detail" id="visualReport">
+        <div class="panel-head">
+          <div>
+            <h2>Relatório visual</h2>
+            <p id="reportSubtitle">Execute um teste ou abra um relatório salvo.</p>
+          </div>
+          <div class="status-pill idle" id="reportStatus">vazio</div>
+        </div>
+        <div id="reportContent" class="empty-state">
+          Nenhum relatório selecionado ainda.
+        </div>
       </section>
     </main>
 
