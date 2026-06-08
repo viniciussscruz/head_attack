@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 reports/*.json
 reports/*.md
+reports/agent_media/

@@ -18,6 +18,7 @@ The default maximum target size is 512 IPv4 addresses per scan. The scanner does
 ## Features
 
 - Web dashboard for launching scans.
+- `test_bad_agent` tab for controlled adversary simulation on authorized private networks.
 - Real-time scan output using Server-Sent Events.
 - Quick and controlled full scan profiles.
 - Host discovery using ICMP and lightweight TCP probing.
@@ -28,6 +29,27 @@ The default maximum target size is 512 IPv4 addresses per scan. The scanner does
 - Markdown and JSON report files for export and persistence.
 - In-memory recurring scan scheduling.
 - Example `systemd` service for running the dashboard continuously.
+
+## test_bad_agent
+
+The `test_bad_agent` tab is a controlled adversary-simulation workflow. It is meant to show where a malicious actor would likely focus attention without turning the tool into an autonomous exploit runner.
+
+It can run these safe checks:
+
+- Exposed HTTP/HTTPS administration panels.
+- Insecure or sensitive services such as FTP, Telnet, SMB, MQTT, VNC, RDP, and RTSP.
+- Camera/DVR RTSP exposure.
+- Segmentation weakness signals, such as cameras and SMB appearing in the same reachable surface.
+
+Safety limits:
+
+- No brute force.
+- No exploit execution.
+- No default-password attempts.
+- No configuration changes.
+- RTSP frame capture is opt-in and only attempts a single unauthenticated frame from the base RTSP URL.
+
+The AI fields are optional. When an OpenAI-compatible chat completions endpoint, model, and API key are supplied, the app sends only summarized findings and asks for a defensive remediation-focused explanation. The API key is not saved to disk. If no key is supplied, the app generates a local summary.
 
 ## Requirements
 
@@ -131,6 +153,15 @@ The visual report is the primary reading experience. The Markdown report is usef
 4. Watch each phase and host result in real time.
 5. Review the summary and generated report.
 6. Apply fixes and rescan to validate improvements.
+
+For `test_bad_agent`:
+
+1. Open the `test_bad_agent` tab.
+2. Enter an authorized private or Tailscale target.
+3. Select the adversary-simulation checks.
+4. Optionally provide an AI API key for defensive analysis.
+5. Optionally enable RTSP frame capture if you want to prove that a camera stream is open without credentials.
+6. Review evidence, links, media, and remediation guidance.
 
 ## Recommended Manual Checks
 

@@ -14,6 +14,25 @@ const refreshReports = document.querySelector("#refreshReports");
 const reportSubtitle = document.querySelector("#reportSubtitle");
 const reportStatus = document.querySelector("#reportStatus");
 const reportContent = document.querySelector("#reportContent");
+const tabButtons = document.querySelectorAll("[data-tab]");
+const dashboardTab = document.querySelector("#dashboardTab");
+const badAgentTab = document.querySelector("#badAgentTab");
+const badAgentForm = document.querySelector("#badAgentForm");
+const badAgentTarget = document.querySelector("#badAgentTarget");
+const aiEndpoint = document.querySelector("#aiEndpoint");
+const aiModel = document.querySelector("#aiModel");
+const aiApiKey = document.querySelector("#aiApiKey");
+const captureRtspFrame = document.querySelector("#captureRtspFrame");
+const badAgentActive = document.querySelector("#badAgentActive");
+const badAgentStatus = document.querySelector("#badAgentStatus");
+const badAgentConsole = document.querySelector("#badAgentConsole");
+const badHostsCount = document.querySelector("#badHostsCount");
+const badEvidenceCount = document.querySelector("#badEvidenceCount");
+const badHighCount = document.querySelector("#badHighCount");
+const badOverallStatus = document.querySelector("#badOverallStatus");
+const badAgentSubtitle = document.querySelector("#badAgentSubtitle");
+const badAgentReportStatus = document.querySelector("#badAgentReportStatus");
+const badAgentReport = document.querySelector("#badAgentReport");
 
 const hostsCount = document.querySelector("#hostsCount");
 const portsCount = document.querySelector("#portsCount");
@@ -21,6 +40,11 @@ const highCount = document.querySelector("#highCount");
 const overallStatus = document.querySelector("#overallStatus");
 
 let activeSource = null;
+let activeBadSource = null;
+
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => switchTab(button.dataset.tab));
+});
 
 scanForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -32,10 +56,21 @@ scheduleForm.addEventListener("submit", async (event) => {
   await createSchedule();
 });
 
+badAgentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await startBadAgent();
+});
+
 refreshReports.addEventListener("click", () => {
   loadReports();
   loadSchedules();
 });
+
+function switchTab(tabName) {
+  tabButtons.forEach((button) => button.classList.toggle("active", button.dataset.tab === tabName));
+  dashboardTab.classList.toggle("active", tabName === "dashboard");
+  badAgentTab.classList.toggle("active", tabName === "badAgent");
+}
 
 async function startScan() {
   resetLive();
@@ -104,6 +139,133 @@ function handleEvent(payload, scanId) {
   if (event === "failed") {
     setStatus("falhou", "bad");
   }
+}
+
+async function startBadAgent() {
+  resetBadAgent();
+  setBadStatus("rodando", "warn");
+
+  const tests = Array.from(document.querySelectorAll('input[name="badTest"]:checked')).map((item) => item.value);
+  const response = await fetch("/api/bad-agent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      target: badAgentTarget.value.trim(),
+      tests,
+      capture_rtsp_frame: captureRtspFrame.checked,
+      ai_endpoint: aiEndpoint.value.trim(),
+      ai_model: aiModel.value.trim(),
+      ai_api_key: aiApiKey.value.trim() || null,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
+    setBadStatus("erro", "bad");
+    addBadLine("erro", error.detail || "Nao foi possivel iniciar o test_bad_agent.");
+    return;
+  }
+
+  const data = await response.json();
+  badAgentActive.textContent = `Agente ${data.agent_id} em ${badAgentTarget.value.trim()}`;
+  streamBadAgent(data.agent_id);
+}
+
+function streamBadAgent(agentId) {
+  if (activeBadSource) {
+    activeBadSource.close();
+  }
+
+  activeBadSource = new EventSource(`/api/bad-agent/${agentId}/events`);
+  activeBadSource.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+    handleBadAgentEvent(payload);
+  };
+  activeBadSource.onerror = () => {
+    addBadLine("stream", "Conexao de eventos encerrada.");
+    activeBadSource.close();
+  };
+}
+
+function handleBadAgentEvent(payload) {
+  const event = payload.event || "info";
+  const message = payload.message || "";
+  addBadLine(event, message);
+
+  if (event === "host_found") {
+    badHostsCount.textContent = String(Number(badHostsCount.textContent) + 1);
+  }
+
+  if (event === "finished") {
+    const report = payload.data;
+    renderBadAgentReport(report);
+    setBadStatus("concluido", statusClass(report.summary?.overall_status));
+  }
+
+  if (event === "failed") {
+    setBadStatus("falhou", "bad");
+  }
+}
+
+function renderBadAgentReport(report) {
+  const summary = report.summary || {};
+  const counts = summary.by_severity || {};
+  const highTotal = (counts.critical || 0) + (counts.high || 0);
+  badHostsCount.textContent = summary.hosts_found ?? badHostsCount.textContent;
+  badEvidenceCount.textContent = summary.total_evidence ?? "0";
+  badHighCount.textContent = String(highTotal);
+  badOverallStatus.textContent = summary.overall_status || "-";
+  badAgentSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at)} · ${summary.total_evidence || 0} evidências`;
+  badAgentReportStatus.textContent = summary.overall_status || "ok";
+  badAgentReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
+  badAgentReport.className = "report-body";
+
+  const evidence = report.evidence || [];
+  badAgentReport.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", summary.overall_status || "ok")}
+      ${metricCard("Hosts", summary.hosts_found || 0)}
+      ${metricCard("Evidências", summary.total_evidence || 0)}
+      ${metricCard("Críticos/altos", highTotal)}
+    </div>
+
+    <div class="agent-safety">
+      <strong>Modo seguro ativo</strong>
+      <span>Sem brute force</span>
+      <span>Sem exploit</span>
+      <span>Sem tentativa de senha padrão</span>
+      <span>Frame RTSP só com opt-in</span>
+    </div>
+
+    <div class="report-section">
+      <h3>Evidências adversárias controladas</h3>
+      <div class="finding-list">
+        ${evidence.length ? evidence.map(agentEvidenceCard).join("") : '<div class="empty-state">Nenhuma evidência encontrada nos testes selecionados.</div>'}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Análise da IA</h3>
+      <pre class="ai-analysis">${escapeHtml(report.ai_analysis || "Sem análise disponível.")}</pre>
+    </div>
+  `;
+}
+
+function agentEvidenceCard(item) {
+  const links = (item.links || []).map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("");
+  const media = item.media ? `<figure class="agent-media"><img src="${escapeHtml(item.media.url)}" alt="${escapeHtml(item.media.caption || "Frame RTSP capturado")}" /><figcaption>${escapeHtml(item.media.caption || "")}</figcaption></figure>` : "";
+  return `
+    <article class="finding ${escapeHtml(item.severity)}">
+      <span class="severity">${escapeHtml(item.severity)}</span>
+      <h4>${escapeHtml(item.title)}</h4>
+      <p><strong>Alvo:</strong> <code>${escapeHtml(item.target)}</code></p>
+      <p>${escapeHtml(item.detail)}</p>
+      <p><strong>Prova segura:</strong> ${escapeHtml(item.proof)}</p>
+      <p><strong>Correção:</strong> ${escapeHtml(item.correction)}</p>
+      <div class="device-links">${links || '<span>Sem link direto.</span>'}</div>
+      ${media}
+    </article>
+  `;
 }
 
 function applySummary(summary) {
@@ -408,9 +570,25 @@ function resetLive() {
   overallStatus.textContent = "-";
 }
 
+function resetBadAgent() {
+  badAgentConsole.innerHTML = "";
+  badHostsCount.textContent = "0";
+  badEvidenceCount.textContent = "0";
+  badHighCount.textContent = "0";
+  badOverallStatus.textContent = "-";
+  badAgentReport.className = "empty-state";
+  badAgentReport.textContent = "Aguardando resultado do test_bad_agent.";
+  badAgentReportStatus.textContent = "rodando";
+}
+
 function setStatus(text, className) {
   scanStatus.textContent = text;
   scanStatus.className = `status-pill ${className || "idle"}`;
+}
+
+function setBadStatus(text, className) {
+  badAgentStatus.textContent = text;
+  badAgentStatus.className = `status-pill ${className || "idle"}`;
 }
 
 function statusClass(status) {
@@ -430,6 +608,15 @@ function addLine(kind, message) {
   line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
   consoleEl.appendChild(line);
   consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function addBadLine(kind, message) {
+  const line = document.createElement("div");
+  line.className = "console-line";
+  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
+  badAgentConsole.appendChild(line);
+  badAgentConsole.scrollTop = badAgentConsole.scrollHeight;
 }
 
 function formatDate(value) {

@@ -12,10 +12,16 @@
         <p class="eyebrow">Auditoria defensiva de rede</p>
         <h1>Security Network Audit</h1>
       </div>
-      <div class="status-pill" id="serviceStatus">pronto</div>
+      <div class="top-actions">
+        <nav class="tabs" aria-label="Abas principais">
+          <button type="button" class="tab-button active" data-tab="dashboard">dashboard</button>
+          <button type="button" class="tab-button" data-tab="badAgent">test_bad_agent</button>
+        </nav>
+        <div class="status-pill" id="serviceStatus">pronto</div>
+      </div>
     </header>
 
-    <main class="layout">
+    <main class="layout tab-view active" id="dashboardTab">
       <section class="panel controls">
         <h2>Novo teste</h2>
         <form id="scanForm">
@@ -112,6 +118,103 @@
         </div>
         <div id="reportContent" class="empty-state">
           Nenhum relatório selecionado ainda.
+        </div>
+      </section>
+    </main>
+
+    <main class="layout tab-view" id="badAgentTab">
+      <section class="panel controls">
+        <h2>test_bad_agent</h2>
+        <form id="badAgentForm">
+          <label>
+            Rede autorizada
+            <input id="badAgentTarget" name="badAgentTarget" value="192.168.15.0/24" autocomplete="off" required />
+          </label>
+
+          <label>
+            Endpoint da IA
+            <input id="aiEndpoint" name="aiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
+          </label>
+
+          <label>
+            Modelo
+            <input id="aiModel" name="aiModel" value="gpt-4.1-mini" autocomplete="off" />
+          </label>
+
+          <label>
+            API key da IA
+            <input id="aiApiKey" name="aiApiKey" type="password" placeholder="Opcional: não é salva" autocomplete="off" />
+          </label>
+
+          <div class="test-options">
+            <label class="check">
+              <input type="checkbox" name="badTest" value="admin_panels" checked />
+              Painéis admin HTTP/HTTPS
+            </label>
+            <label class="check">
+              <input type="checkbox" name="badTest" value="insecure_services" checked />
+              Serviços inseguros
+            </label>
+            <label class="check">
+              <input type="checkbox" name="badTest" value="camera_rtsp" checked />
+              Câmeras/DVR RTSP
+            </label>
+            <label class="check">
+              <input type="checkbox" name="badTest" value="segmentation" checked />
+              Segmentação fraca
+            </label>
+          </div>
+
+          <label class="check danger-check">
+            <input id="captureRtspFrame" type="checkbox" />
+            Capturar 1 frame RTSP sem credenciais quando o fluxo estiver aberto
+          </label>
+
+          <button type="submit">Rodar test_bad_agent</button>
+        </form>
+      </section>
+
+      <section class="panel live">
+        <div class="panel-head">
+          <div>
+            <h2>Execução adversária controlada</h2>
+            <p id="badAgentActive">Nenhum agente em execução.</p>
+          </div>
+          <div class="status-pill idle" id="badAgentStatus">aguardando</div>
+        </div>
+
+        <div class="summary-grid">
+          <div>
+            <span>Hosts</span>
+            <strong id="badHostsCount">0</strong>
+          </div>
+          <div>
+            <span>Evidências</span>
+            <strong id="badEvidenceCount">0</strong>
+          </div>
+          <div>
+            <span>Altos</span>
+            <strong id="badHighCount">0</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="badOverallStatus">-</strong>
+          </div>
+        </div>
+
+        <div class="console" id="badAgentConsole"></div>
+      </section>
+
+      <section class="panel report-detail">
+        <div class="panel-head">
+          <div>
+            <h2>Resultado do test_bad_agent</h2>
+            <p id="badAgentSubtitle">A IA é usada apenas para explicar os achados; os testes continuam controlados.</p>
+          </div>
+          <div class="status-pill idle" id="badAgentReportStatus">vazio</div>
+        </div>
+        <div id="badAgentReport" class="empty-state">
+          Nenhum resultado ainda.
         </div>
       </section>
     </main>

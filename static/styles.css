@@ -34,6 +34,38 @@ body {
   background: #ffffff;
 }
 
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.tab-button {
+  width: auto;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: #344054;
+  font-size: 13px;
+}
+
+.tab-button:hover,
+.tab-button.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .eyebrow {
   margin: 0 0 3px;
   color: var(--accent);
@@ -59,10 +91,14 @@ h2 {
 }
 
 .layout {
-  display: grid;
+  display: none;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 18px;
   padding: 18px clamp(16px, 4vw, 44px) 36px;
+}
+
+.layout.active {
+  display: grid;
 }
 
 .panel {
@@ -151,6 +187,25 @@ button.secondary:hover {
 .check input {
   width: auto;
   margin: 0;
+}
+
+.test-options {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.danger-check {
+  align-items: flex-start;
+  padding: 10px;
+  border: 1px solid #ffd8a8;
+  border-radius: 8px;
+  background: #fff8ee;
+  color: #7a4100;
 }
 
 .divider {
@@ -521,8 +576,69 @@ code {
   font-size: 13px;
 }
 
+.agent-safety {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #b9e7ce;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f1fbf6;
+}
+
+.agent-safety strong {
+  margin-right: 4px;
+  color: var(--ok);
+}
+
+.agent-safety span {
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #ffffff;
+  color: #176b45;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ai-analysis {
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  border-radius: 8px;
+  padding: 14px;
+  background: #101828;
+  color: #e6edf6;
+  font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.agent-media {
+  margin: 12px 0 0;
+}
+
+.agent-media img {
+  display: block;
+  width: min(100%, 640px);
+  max-height: 360px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000000;
+}
+
+.agent-media figcaption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .top-actions {
     align-items: flex-start;
     flex-direction: column;
   }

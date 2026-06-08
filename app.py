@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from bad_agent import AGENT_MEDIA_DIR, SAFE_TESTS, run_bad_agent
 from scanner import REPORTS_DIR, ScanError, run_scan, validate_target
 
 
@@ -25,6 +26,15 @@ class ScanRequest(BaseModel):
 class ScheduleRequest(ScanRequest):
     interval_minutes: int = Field(default=60, ge=5, le=1440)
     run_now: bool = True
+
+
+class BadAgentRequest(BaseModel):
+    target: str = Field(..., examples=["192.168.15.0/24"])
+    tests: list[str] = Field(default_factory=lambda: list(SAFE_TESTS))
+    capture_rtsp_frame: bool = False
+    ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
+    ai_model: str | None = "gpt-4.1-mini"
+    ai_api_key: str | None = None
 
 
 class ScanState:
@@ -57,8 +67,27 @@ class ScheduleState:
         self.task: asyncio.Task[None] | None = None
 
 
+class BadAgentState:
+    def __init__(self, agent_id: str, request: BadAgentRequest) -> None:
+        self.agent_id = agent_id
+        self.target = request.target
+        self.tests = request.tests
+        self.created_at = datetime.now(timezone.utc).isoformat()
+        self.status = "queued"
+        self.events: list[dict[str, Any]] = []
+        self.subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
+        self.report: dict[str, Any] | None = None
+        self.error: str | None = None
+
+    async def publish(self, payload: dict[str, Any]) -> None:
+        self.events.append(payload)
+        for queue in list(self.subscribers):
+            await queue.put(payload)
+
+
 scans: dict[str, ScanState] = {}
 schedules: dict[str, ScheduleState] = {}
+bad_agents: dict[str, BadAgentState] = {}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -205,10 +234,101 @@ async def delete_schedule(schedule_id: str) -> dict[str, str]:
     return {"status": "removed"}
 
 
+@app.get("/api/bad-agent/tests")
+async def bad_agent_tests() -> dict[str, str]:
+    return SAFE_TESTS
+
+
+@app.post("/api/bad-agent")
+async def create_bad_agent(request: BadAgentRequest) -> dict[str, str]:
+    try:
+        validate_target(request.target)
+    except ScanError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    agent_id = uuid.uuid4().hex[:12]
+    state = BadAgentState(agent_id, request)
+    bad_agents[agent_id] = state
+    asyncio.create_task(_bad_agent_task(state, request))
+    return {"agent_id": agent_id, "events_url": f"/api/bad-agent/{agent_id}/events"}
+
+
+@app.get("/api/bad-agent/{agent_id}")
+async def get_bad_agent(agent_id: str) -> dict[str, Any]:
+    state = _bad_agent_or_404(agent_id)
+    return {
+        "id": state.agent_id,
+        "target": state.target,
+        "tests": state.tests,
+        "status": state.status,
+        "created_at": state.created_at,
+        "events": state.events,
+        "report": state.report,
+        "error": state.error,
+    }
+
+
+@app.get("/api/bad-agent/{agent_id}/events")
+async def bad_agent_events(agent_id: str) -> StreamingResponse:
+    state = _bad_agent_or_404(agent_id)
+
+    async def event_stream():
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        state.subscribers.add(queue)
+        try:
+            for payload in state.events:
+                yield _sse(payload)
+            while state.status in {"queued", "running"}:
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=15)
+                    yield _sse(payload)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+            while not queue.empty():
+                yield _sse(queue.get_nowait())
+            yield _sse({"event": "stream_closed", "message": "Conexao de eventos finalizada."})
+        finally:
+            state.subscribers.discard(queue)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.get("/api/bad-agent/media/{file_name}")
+async def bad_agent_media(file_name: str) -> FileResponse:
+    if "/" in file_name or "\\" in file_name:
+        raise HTTPException(status_code=400, detail="Nome de arquivo invalido.")
+    path = AGENT_MEDIA_DIR / file_name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Midia nao encontrada.")
+    return FileResponse(path, media_type="image/jpeg", filename=file_name)
+
+
 async def _scan_task(state: ScanState) -> None:
     state.status = "running"
     try:
         state.report = await run_scan(state.scan_id, state.target, state.profile, state.publish)
+        state.status = "finished"
+    except Exception as exc:
+        state.error = str(exc)
+        state.status = "failed"
+        await state.publish({"event": "failed", "message": str(exc), "data": {}})
+
+
+async def _bad_agent_task(state: BadAgentState, request: BadAgentRequest) -> None:
+    state.status = "running"
+    try:
+        state.report = await run_bad_agent(
+            state.agent_id,
+            request.target,
+            request.tests,
+            request.capture_rtsp_frame,
+            {
+                "endpoint": request.ai_endpoint,
+                "model": request.ai_model,
+                "api_key": request.ai_api_key,
+            },
+            state.publish,
+        )
         state.status = "finished"
     except Exception as exc:
         state.error = str(exc)
@@ -236,6 +356,13 @@ def _scan_or_404(scan_id: str) -> ScanState:
     state = scans.get(scan_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Scan nao encontrado.")
+    return state
+
+
+def _bad_agent_or_404(agent_id: str) -> BadAgentState:
+    state = bad_agents.get(agent_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="test_bad_agent nao encontrado.")
     return state
 
 
