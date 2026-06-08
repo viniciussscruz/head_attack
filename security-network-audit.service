@@ -1,0 +1,15 @@
+[Unit]
+Description=Security Network Audit Web Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/vinicius/IOT/security_network
+Environment=PATH=/home/vinicius/IOT/security_network/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/vinicius/IOT/security_network/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8088
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

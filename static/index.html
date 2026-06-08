@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Security Network Audit</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Auditoria defensiva de rede</p>
+        <h1>Security Network Audit</h1>
+      </div>
+      <div class="status-pill" id="serviceStatus">pronto</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel controls">
+        <h2>Novo teste</h2>
+        <form id="scanForm">
+          <label>
+            Rede autorizada
+            <input id="target" name="target" value="192.168.15.0/24" autocomplete="off" required />
+          </label>
+
+          <label>
+            Perfil
+            <select id="profile" name="profile">
+              <option value="quick">Rapido e leve</option>
+              <option value="full">Completo controlado</option>
+            </select>
+          </label>
+
+          <div class="actions">
+            <button type="submit">Rodar agora</button>
+            <button type="button" class="secondary" id="refreshReports">Atualizar relatórios</button>
+          </div>
+        </form>
+
+        <div class="divider"></div>
+
+        <h2>Agendamento</h2>
+        <form id="scheduleForm">
+          <label>
+            Intervalo
+            <select id="interval" name="interval">
+              <option value="30">30 minutos</option>
+              <option value="60" selected>1 hora</option>
+              <option value="360">6 horas</option>
+              <option value="1440">1 dia</option>
+            </select>
+          </label>
+          <label class="check">
+            <input id="runNow" type="checkbox" checked />
+            Executar a primeira checagem agora
+          </label>
+          <button type="submit" class="secondary">Criar agendamento</button>
+        </form>
+
+        <div id="schedules" class="list"></div>
+      </section>
+
+      <section class="panel live">
+        <div class="panel-head">
+          <div>
+            <h2>Execução em tempo real</h2>
+            <p id="activeScan">Nenhum teste em execução.</p>
+          </div>
+          <div class="status-pill idle" id="scanStatus">aguardando</div>
+        </div>
+
+        <div class="summary-grid">
+          <div>
+            <span>Hosts</span>
+            <strong id="hostsCount">0</strong>
+          </div>
+          <div>
+            <span>Portas</span>
+            <strong id="portsCount">0</strong>
+          </div>
+          <div>
+            <span>Altos</span>
+            <strong id="highCount">0</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="overallStatus">-</strong>
+          </div>
+        </div>
+
+        <div class="console" id="console"></div>
+      </section>
+
+      <section class="panel reports">
+        <div class="panel-head">
+          <div>
+            <h2>Relatórios</h2>
+            <p>JSON e Markdown ficam salvos em <code>reports/</code>.</p>
+          </div>
+        </div>
+        <div id="reports" class="report-list"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
