@@ -19,6 +19,7 @@ The default maximum target size is 512 IPv4 addresses per scan. The scanner does
 
 - Web dashboard for launching scans.
 - `test_bad_agent` tab for controlled adversary simulation on authorized private networks.
+- `Network Performance` tab for broadcast/multicast analysis, top talkers, internet speed tests, and AI-assisted performance interpretation.
 - Real-time scan output using Server-Sent Events.
 - Quick and controlled full scan profiles.
 - Host discovery using ICMP and lightweight TCP probing.
@@ -57,6 +58,24 @@ Safety limits:
 The AI fields are optional. When an OpenAI-compatible chat completions endpoint, model, and API key are supplied, the app sends only summarized findings and asks for a defensive remediation-focused explanation. The API key is not saved to disk. If no key is supplied, the app generates a local summary.
 
 The dashboard can load the models available to your API key through the configured OpenAI-compatible endpoint. After an agent run, the result shows whether the API was actually used, which model answered, and the prompt/completion/total token counts returned by the provider. Local fallback analysis shows `0` tokens.
+
+## Network Performance
+
+The `Network Performance` tab checks local network health from this machine's point of view.
+
+It collects:
+
+- Local routes, interfaces, link counters, and neighbor table entries.
+- A short passive broadcast/multicast sample using `tcpdump`, when the process has capture permission.
+- Top talkers by source MAC address and protocol family, such as ARP, mDNS, SSDP/UPnP, LLMNR, NetBIOS, DHCP, and IPv6 multicast.
+- Optional internet speed test using `speedtest-cli`.
+- AI-assisted analysis with token usage reporting.
+
+Notes:
+
+- Broadcast/multicast sampling may require running with packet-capture permission or setting capabilities on `tcpdump`.
+- Speed tests need internet access and the `speedtest-cli` dependency from `requirements.txt`.
+- The AI API key is not saved to disk.
 
 ## Requirements
 
@@ -169,6 +188,15 @@ For `test_bad_agent`:
 4. Optionally provide an AI API key for defensive analysis.
 5. Optionally enable RTSP frame capture if you want to prove that a camera stream is open without credentials.
 6. Review evidence, links, media, and remediation guidance.
+
+For `Network Performance`:
+
+1. Open the `Network Performance` tab.
+2. Leave interface blank for auto-detect or enter an interface such as `wlan0`.
+3. Choose the sample duration.
+4. Keep speed test enabled if you want internet download/upload/ping.
+5. Optionally provide an AI API key and load available models.
+6. Review top broadcast/multicast talkers, speed test results, findings, and AI token usage.
 
 ## Recommended Manual Checks
 

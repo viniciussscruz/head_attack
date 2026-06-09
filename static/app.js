@@ -17,6 +17,7 @@ const reportContent = document.querySelector("#reportContent");
 const tabButtons = document.querySelectorAll("[data-tab]");
 const dashboardTab = document.querySelector("#dashboardTab");
 const badAgentTab = document.querySelector("#badAgentTab");
+const performanceTab = document.querySelector("#performanceTab");
 const badAgentForm = document.querySelector("#badAgentForm");
 const badAgentTarget = document.querySelector("#badAgentTarget");
 const aiEndpoint = document.querySelector("#aiEndpoint");
@@ -35,6 +36,25 @@ const badOverallStatus = document.querySelector("#badOverallStatus");
 const badAgentSubtitle = document.querySelector("#badAgentSubtitle");
 const badAgentReportStatus = document.querySelector("#badAgentReportStatus");
 const badAgentReport = document.querySelector("#badAgentReport");
+const performanceForm = document.querySelector("#performanceForm");
+const perfInterface = document.querySelector("#perfInterface");
+const perfSampleSeconds = document.querySelector("#perfSampleSeconds");
+const runSpeedtest = document.querySelector("#runSpeedtest");
+const perfAiEndpoint = document.querySelector("#perfAiEndpoint");
+const perfAiModel = document.querySelector("#perfAiModel");
+const perfAiApiKey = document.querySelector("#perfAiApiKey");
+const loadPerfAiModels = document.querySelector("#loadPerfAiModels");
+const perfAiModelStatus = document.querySelector("#perfAiModelStatus");
+const performanceActive = document.querySelector("#performanceActive");
+const performanceStatus = document.querySelector("#performanceStatus");
+const performanceConsole = document.querySelector("#performanceConsole");
+const perfBroadcastPps = document.querySelector("#perfBroadcastPps");
+const perfTalkers = document.querySelector("#perfTalkers");
+const perfDownload = document.querySelector("#perfDownload");
+const perfOverallStatus = document.querySelector("#perfOverallStatus");
+const performanceSubtitle = document.querySelector("#performanceSubtitle");
+const performanceReportStatus = document.querySelector("#performanceReportStatus");
+const performanceReport = document.querySelector("#performanceReport");
 
 const hostsCount = document.querySelector("#hostsCount");
 const portsCount = document.querySelector("#portsCount");
@@ -43,6 +63,7 @@ const overallStatus = document.querySelector("#overallStatus");
 
 let activeSource = null;
 let activeBadSource = null;
+let activePerformanceSource = null;
 
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => switchTab(button.dataset.tab));
@@ -63,8 +84,17 @@ badAgentForm.addEventListener("submit", async (event) => {
   await startBadAgent();
 });
 
+performanceForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await startPerformanceAnalysis();
+});
+
 loadAiModels.addEventListener("click", async () => {
-  await loadAvailableAiModels();
+  await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus);
+});
+
+loadPerfAiModels.addEventListener("click", async () => {
+  await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus);
 });
 
 refreshReports.addEventListener("click", () => {
@@ -76,6 +106,7 @@ function switchTab(tabName) {
   tabButtons.forEach((button) => button.classList.toggle("active", button.dataset.tab === tabName));
   dashboardTab.classList.toggle("active", tabName === "dashboard");
   badAgentTab.classList.toggle("active", tabName === "badAgent");
+  performanceTab.classList.toggle("active", tabName === "performance");
 }
 
 async function startScan() {
@@ -177,41 +208,210 @@ async function startBadAgent() {
   streamBadAgent(data.agent_id);
 }
 
-async function loadAvailableAiModels() {
-  aiModelStatus.textContent = "Carregando modelos da API...";
-  const response = await fetch("/api/bad-agent/models", {
+async function loadAvailableAiModels(endpointInput, keyInput, modelSelect, statusElement) {
+  statusElement.textContent = "Carregando modelos da API...";
+  const response = await fetch("/api/ai/models", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      ai_endpoint: aiEndpoint.value.trim(),
-      ai_api_key: aiApiKey.value.trim() || null,
+      ai_endpoint: endpointInput.value.trim(),
+      ai_api_key: keyInput.value.trim() || null,
     }),
   });
 
   if (!response.ok) {
     const detail = await response.text();
-    aiModelStatus.textContent = `Não foi possível carregar modelos. HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}`;
+    statusElement.textContent = `Não foi possível carregar modelos. HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}`;
     return;
   }
 
   const data = await response.json();
-  aiModelStatus.textContent = data.message || "Modelos carregados.";
+  statusElement.textContent = data.message || "Modelos carregados.";
   if (!data.models || !data.models.length) {
     return;
   }
 
-  const current = aiModel.value;
-  aiModel.innerHTML = "";
+  const current = modelSelect.value;
+  modelSelect.innerHTML = "";
   for (const model of data.models) {
     const option = document.createElement("option");
     option.value = model;
     option.textContent = model;
     option.selected = model === current;
-    aiModel.appendChild(option);
+    modelSelect.appendChild(option);
   }
-  if (!aiModel.value && data.models.includes("gpt-4.1-mini")) {
-    aiModel.value = "gpt-4.1-mini";
+  if (!modelSelect.value && data.models.includes("gpt-4.1-mini")) {
+    modelSelect.value = "gpt-4.1-mini";
   }
+}
+
+async function startPerformanceAnalysis() {
+  resetPerformance();
+  setPerformanceStatus("rodando", "warn");
+
+  const response = await fetch("/api/performance", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      interface: perfInterface.value.trim() || null,
+      sample_seconds: Number(perfSampleSeconds.value),
+      run_speedtest: runSpeedtest.checked,
+      ai_endpoint: perfAiEndpoint.value.trim(),
+      ai_model: perfAiModel.value.trim(),
+      ai_api_key: perfAiApiKey.value.trim() || null,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
+    setPerformanceStatus("erro", "bad");
+    addPerformanceLine("erro", error.detail || "Não foi possível iniciar a análise.");
+    return;
+  }
+
+  const data = await response.json();
+  performanceActive.textContent = `Análise ${data.analysis_id}`;
+  streamPerformance(data.analysis_id);
+}
+
+function streamPerformance(analysisId) {
+  if (activePerformanceSource) {
+    activePerformanceSource.close();
+  }
+
+  activePerformanceSource = new EventSource(`/api/performance/${analysisId}/events`);
+  activePerformanceSource.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+    handlePerformanceEvent(payload);
+  };
+  activePerformanceSource.onerror = () => {
+    addPerformanceLine("stream", "Conexao de eventos encerrada.");
+    activePerformanceSource.close();
+  };
+}
+
+function handlePerformanceEvent(payload) {
+  const event = payload.event || "info";
+  const message = payload.message || "";
+  addPerformanceLine(event, message);
+
+  if (event === "broadcast_done") {
+    perfBroadcastPps.textContent = payload.data.packets_per_second ?? "0";
+    perfTalkers.textContent = String((payload.data.talkers || []).length);
+  }
+
+  if (event === "speedtest_done" && payload.data.status === "ok") {
+    perfDownload.textContent = `${payload.data.download_mbps} Mbps`;
+  }
+
+  if (event === "finished") {
+    const report = payload.data;
+    renderPerformanceReport(report);
+    setPerformanceStatus("concluido", statusClass(report.summary?.overall_status));
+  }
+
+  if (event === "failed") {
+    setPerformanceStatus("falhou", "bad");
+  }
+}
+
+function renderPerformanceReport(report) {
+  const summary = report.summary || {};
+  const broadcast = report.broadcast_sample || {};
+  const speed = report.speedtest || {};
+  const aiAnalysis = normalizeAiAnalysis(report.ai_analysis);
+  const tokens = aiAnalysis.token_usage || {};
+  performanceSubtitle.textContent = `${report.interface || "auto"} · ${formatDate(report.finished_at)} · ${broadcast.total_packets || 0} pacotes`;
+  performanceReportStatus.textContent = summary.overall_status || "ok";
+  performanceReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
+  perfBroadcastPps.textContent = summary.broadcast_pps ?? "0";
+  perfTalkers.textContent = summary.top_talkers ?? "0";
+  perfDownload.textContent = speed.status === "ok" ? `${speed.download_mbps} Mbps` : "-";
+  perfOverallStatus.textContent = summary.overall_status || "-";
+  performanceReport.className = "report-body";
+
+  performanceReport.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", summary.overall_status || "ok")}
+      ${metricCard("Broadcast/s", summary.broadcast_pps || 0)}
+      ${metricCard("Talkers", summary.top_talkers || 0)}
+      ${metricCard("Speed", speed.status === "ok" ? `${speed.download_mbps} Mbps` : speed.status || "skipped")}
+    </div>
+
+    <div class="report-section">
+      <h3>Maiores emissores de broadcast/multicast</h3>
+      <div class="host-grid">
+        ${(broadcast.talkers || []).length ? broadcast.talkers.map(talkerCard).join("") : `<div class="empty-state">${escapeHtml(broadcast.message || "Nenhum pacote capturado na amostra.")}</div>`}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Speed test</h3>
+      ${speedCard(speed)}
+    </div>
+
+    <div class="report-section">
+      <h3>Achados de performance</h3>
+      <div class="finding-list">
+        ${(report.findings || []).map(performanceFindingCard).join("")}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Análise da IA</h3>
+      <div class="ai-usage">
+        <span>${aiAnalysis.used_api ? "IA usada" : "Análise local"}</span>
+        <span>Modelo: ${escapeHtml(aiAnalysis.model || "-")}</span>
+        <span>Prompt: ${tokens.prompt_tokens || 0}</span>
+        <span>Resposta: ${tokens.completion_tokens || 0}</span>
+        <span>Total: ${tokens.total_tokens || 0}</span>
+      </div>
+      ${aiAnalysis.fallback_reason ? `<p class="ai-note">${escapeHtml(aiAnalysis.fallback_reason)}</p>` : ""}
+      <pre class="ai-analysis">${escapeHtml(aiAnalysis.content || "Sem análise disponível.")}</pre>
+    </div>
+  `;
+}
+
+function talkerCard(talker) {
+  const protocols = Object.entries(talker.protocols || {})
+    .map(([name, count]) => `<span class="port-chip medium">${escapeHtml(name)}: ${count}</span>`)
+    .join("");
+  return `
+    <article class="host-card">
+      <div class="host-head">
+        <div>
+          <strong>${escapeHtml(talker.mac)}</strong>
+          <p>${talker.packets} pacotes · ${talker.packets_per_second}/s</p>
+        </div>
+      </div>
+      <div class="port-list">${protocols || "<span>Sem protocolo classificado.</span>"}</div>
+    </article>
+  `;
+}
+
+function speedCard(speed) {
+  if (!speed || speed.status !== "ok") {
+    return `<div class="empty-state">${escapeHtml(speed?.message || "Speed test não executado.")}</div>`;
+  }
+  return `
+    <div class="pass-grid">
+      ${metricCard("Download", `${speed.download_mbps} Mbps`)}
+      ${metricCard("Upload", `${speed.upload_mbps} Mbps`)}
+      ${metricCard("Ping", `${speed.ping_ms} ms`)}
+      ${metricCard("Servidor", `${speed.server?.sponsor || "-"} ${speed.server?.name || ""}`)}
+    </div>
+  `;
+}
+
+function performanceFindingCard(finding) {
+  return `
+    <article class="finding ${escapeHtml(finding.severity)}">
+      <span class="severity">${escapeHtml(finding.severity)}</span>
+      <h4>${escapeHtml(finding.title)}</h4>
+      <p>${escapeHtml(finding.detail)}</p>
+      <p><strong>Recomendação:</strong> ${escapeHtml(finding.recommendation)}</p>
+    </article>
+  `;
 }
 
 function streamBadAgent(agentId) {
@@ -655,6 +855,17 @@ function resetBadAgent() {
   badAgentReportStatus.textContent = "rodando";
 }
 
+function resetPerformance() {
+  performanceConsole.innerHTML = "";
+  perfBroadcastPps.textContent = "0";
+  perfTalkers.textContent = "0";
+  perfDownload.textContent = "-";
+  perfOverallStatus.textContent = "-";
+  performanceReport.className = "empty-state";
+  performanceReport.textContent = "Aguardando resultado da análise.";
+  performanceReportStatus.textContent = "rodando";
+}
+
 function setStatus(text, className) {
   scanStatus.textContent = text;
   scanStatus.className = `status-pill ${className || "idle"}`;
@@ -663,6 +874,11 @@ function setStatus(text, className) {
 function setBadStatus(text, className) {
   badAgentStatus.textContent = text;
   badAgentStatus.className = `status-pill ${className || "idle"}`;
+}
+
+function setPerformanceStatus(text, className) {
+  performanceStatus.textContent = text;
+  performanceStatus.className = `status-pill ${className || "idle"}`;
 }
 
 function statusClass(status) {
@@ -691,6 +907,15 @@ function addBadLine(kind, message) {
   line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
   badAgentConsole.appendChild(line);
   badAgentConsole.scrollTop = badAgentConsole.scrollHeight;
+}
+
+function addPerformanceLine(kind, message) {
+  const line = document.createElement("div");
+  line.className = "console-line";
+  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
+  performanceConsole.appendChild(line);
+  performanceConsole.scrollTop = performanceConsole.scrollHeight;
 }
 
 function formatDate(value) {

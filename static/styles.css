@@ -506,6 +506,7 @@ code {
 }
 
 .pass-card,
+.pass-grid > div,
 .host-card,
 .check-item {
   border: 1px solid var(--line);

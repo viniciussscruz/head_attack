@@ -16,6 +16,7 @@
         <nav class="tabs" aria-label="Abas principais">
           <button type="button" class="tab-button active" data-tab="dashboard">dashboard</button>
           <button type="button" class="tab-button" data-tab="badAgent">test_bad_agent</button>
+          <button type="button" class="tab-button" data-tab="performance">Network Performance</button>
         </nav>
         <div class="status-pill" id="serviceStatus">pronto</div>
       </div>
@@ -234,6 +235,101 @@
           <div class="status-pill idle" id="badAgentReportStatus">vazio</div>
         </div>
         <div id="badAgentReport" class="empty-state">
+          Nenhum resultado ainda.
+        </div>
+      </section>
+    </main>
+
+    <main class="layout tab-view" id="performanceTab">
+      <section class="panel controls">
+        <h2>Network Performance</h2>
+        <form id="performanceForm">
+          <label>
+            Interface de rede
+            <input id="perfInterface" name="perfInterface" placeholder="Auto, ex: wlan0" autocomplete="off" />
+          </label>
+
+          <label>
+            Amostra de broadcast
+            <select id="perfSampleSeconds" name="perfSampleSeconds">
+              <option value="10">10 segundos</option>
+              <option value="15" selected>15 segundos</option>
+              <option value="30">30 segundos</option>
+              <option value="60">60 segundos</option>
+            </select>
+          </label>
+
+          <label class="check">
+            <input id="runSpeedtest" type="checkbox" checked />
+            Rodar speed test de internet
+          </label>
+
+          <div class="divider"></div>
+
+          <label>
+            Endpoint da IA
+            <input id="perfAiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
+          </label>
+
+          <label>
+            Modelo
+            <select id="perfAiModel">
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            </select>
+          </label>
+
+          <label>
+            API key da IA
+            <input id="perfAiApiKey" type="password" placeholder="Opcional: não é salva" autocomplete="off" />
+          </label>
+
+          <button type="button" class="secondary" id="loadPerfAiModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="perfAiModelStatus">Modelos só podem ser carregados depois de informar a API key.</p>
+
+          <button type="submit">Analisar performance</button>
+        </form>
+      </section>
+
+      <section class="panel live">
+        <div class="panel-head">
+          <div>
+            <h2>Execução da análise</h2>
+            <p id="performanceActive">Nenhuma análise em execução.</p>
+          </div>
+          <div class="status-pill idle" id="performanceStatus">aguardando</div>
+        </div>
+
+        <div class="summary-grid">
+          <div>
+            <span>Broadcast/s</span>
+            <strong id="perfBroadcastPps">0</strong>
+          </div>
+          <div>
+            <span>Talkers</span>
+            <strong id="perfTalkers">0</strong>
+          </div>
+          <div>
+            <span>Download</span>
+            <strong id="perfDownload">-</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="perfOverallStatus">-</strong>
+          </div>
+        </div>
+
+        <div class="console" id="performanceConsole"></div>
+      </section>
+
+      <section class="panel report-detail">
+        <div class="panel-head">
+          <div>
+            <h2>Network Performance Report</h2>
+            <p id="performanceSubtitle">A análise usa dados locais, amostra passiva e speed test.</p>
+          </div>
+          <div class="status-pill idle" id="performanceReportStatus">vazio</div>
+        </div>
+        <div id="performanceReport" class="empty-state">
           Nenhum resultado ainda.
         </div>
       </section>
