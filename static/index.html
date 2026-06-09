@@ -22,7 +22,7 @@
       </div>
       <div class="top-actions">
         <nav class="tabs" aria-label="Abas principais">
-          <button type="button" class="tab-button active" data-tab="dashboard" data-i18n="tabDashboard">Dashboard</button>
+          <button type="button" class="tab-button active" data-tab="dashboard" data-i18n="tabDashboard">Check de Rede</button>
           <button type="button" class="tab-button" data-tab="badAgent" data-i18n="tabBadAgent">Bad Agent</button>
           <button type="button" class="tab-button" data-tab="performance" data-i18n="tabPerformance">Performance</button>
           <button type="button" class="tab-button" data-tab="websiteSecurity" data-i18n="tabWebsite">Website Security</button>
@@ -113,6 +113,33 @@
         </form>
 
         <div id="schedules" class="list"></div>
+
+        <div class="divider"></div>
+
+        <h2 data-i18n="deviceScanTitle">Dispositivos na Rede</h2>
+        <form id="deviceScanForm">
+          <label>
+            <span data-i18n="authorizedNetwork">Rede autorizada</span>
+            <input id="deviceTarget" name="deviceTarget" value="192.168.15.0/24" autocomplete="off" required />
+          </label>
+          <button type="submit" data-i18n="btnScanDevices">Escanear dispositivos</button>
+        </form>
+        <div class="panel-head" style="margin-top:10px">
+          <div class="status-pill idle" id="deviceScanStatus" data-i18n="statusWaiting">aguardando</div>
+          <p id="deviceScanInfo" style="margin:0;font-size:12px;color:var(--muted)"></p>
+        </div>
+        <div class="console" id="deviceConsole" style="max-height:130px;margin-top:8px"></div>
+      </section>
+
+      <section class="panel device-results" id="deviceResultsPanel">
+        <div class="panel-head">
+          <div>
+            <h2 data-i18n="deviceReportTitle">Dispositivos descobertos</h2>
+            <p id="deviceResultsSubtitle" data-i18n="deviceReportHint">MAC address e fabricante de cada dispositivo na rede.</p>
+          </div>
+          <div class="status-pill idle" id="deviceResultsStatus" data-i18n="statusEmpty">vazio</div>
+        </div>
+        <div id="deviceTable" class="empty-state" data-i18n="noResultYet">Nenhum resultado ainda.</div>
       </section>
 
       <section class="panel live">
