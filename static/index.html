@@ -3,25 +3,34 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2563eb" />
     <title>Security Network Audit</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">Auditoria defensiva de rede</p>
-        <h1>Security Network Audit</h1>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="eyebrow">Auditoria defensiva de rede</p>
+          <h1>Security Network Audit</h1>
+        </div>
       </div>
       <div class="top-actions">
         <nav class="tabs" aria-label="Abas principais">
-          <button type="button" class="tab-button active" data-tab="dashboard">dashboard</button>
-          <button type="button" class="tab-button" data-tab="badAgent">test_bad_agent</button>
-          <button type="button" class="tab-button" data-tab="performance">Network Performance</button>
+          <button type="button" class="tab-button active" data-tab="dashboard">Dashboard</button>
+          <button type="button" class="tab-button" data-tab="badAgent">Bad Agent</button>
+          <button type="button" class="tab-button" data-tab="performance">Performance</button>
         </nav>
         <div class="status-pill" id="serviceStatus">pronto</div>
       </div>
     </header>
 
+    <!-- ── Dashboard ─────────────────────────────────── -->
     <main class="layout tab-view active" id="dashboardTab">
       <section class="panel controls">
         <h2>Novo teste</h2>
@@ -34,14 +43,14 @@
           <label>
             Perfil
             <select id="profile" name="profile">
-              <option value="quick">Rapido e leve</option>
+              <option value="quick">Rápido e leve</option>
               <option value="full">Completo controlado</option>
             </select>
           </label>
 
           <div class="actions">
             <button type="submit">Rodar agora</button>
-            <button type="button" class="secondary" id="refreshReports">Atualizar relatórios</button>
+            <button type="button" class="secondary" id="refreshReports">Atualizar</button>
           </div>
         </form>
 
@@ -78,22 +87,10 @@
         </div>
 
         <div class="summary-grid">
-          <div>
-            <span>Hosts</span>
-            <strong id="hostsCount">0</strong>
-          </div>
-          <div>
-            <span>Portas</span>
-            <strong id="portsCount">0</strong>
-          </div>
-          <div>
-            <span>Altos</span>
-            <strong id="highCount">0</strong>
-          </div>
-          <div>
-            <span>Status</span>
-            <strong id="overallStatus">-</strong>
-          </div>
+          <div><span>Hosts</span><strong id="hostsCount">0</strong></div>
+          <div><span>Portas</span><strong id="portsCount">0</strong></div>
+          <div><span>Críticos/Altos</span><strong id="highCount">0</strong></div>
+          <div><span>Status</span><strong id="overallStatus">—</strong></div>
         </div>
 
         <div class="console" id="console"></div>
@@ -102,8 +99,8 @@
       <section class="panel reports">
         <div class="panel-head">
           <div>
-            <h2>Relatórios</h2>
-            <p>Abra o painel visual para entender riscos, acertos e links de correção.</p>
+            <h2>Relatórios salvos</h2>
+            <p>Abra para ver riscos, acertos e links de correção.</p>
           </div>
         </div>
         <div id="reports" class="report-list"></div>
@@ -123,6 +120,7 @@
       </section>
     </main>
 
+    <!-- ── Bad Agent ──────────────────────────────────── -->
     <main class="layout tab-view" id="badAgentTab">
       <section class="panel controls">
         <h2>test_bad_agent</h2>
@@ -146,44 +144,23 @@
 
           <label>
             API key da IA
-            <input id="aiApiKey" name="aiApiKey" type="password" placeholder="Opcional: não é salva" autocomplete="off" />
+            <input id="aiApiKey" name="aiApiKey" type="password" placeholder="Opcional — não é salva" autocomplete="off" />
           </label>
 
           <button type="button" class="secondary" id="loadAiModels">Carregar modelos disponíveis</button>
-          <p class="model-status" id="aiModelStatus">Modelos só podem ser carregados depois de informar a API key.</p>
+          <p class="model-status" id="aiModelStatus">Informe a API key para carregar modelos.</p>
 
           <div class="test-options">
             <p class="option-help">
-              Marcar uma opção executa a checagem daquela categoria. A ferramenta coleta evidências seguras, sem tentar senhas, resets ou exploits reais.
+              Evidências seguras — sem senhas, resets ou exploits.
             </p>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="admin_panels" checked />
-              Painéis admin HTTP/HTTPS
-            </label>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="insecure_services" checked />
-              Serviços inseguros
-            </label>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="camera_rtsp" checked />
-              Câmeras/DVR RTSP
-            </label>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="segmentation" checked />
-              Segmentação fraca
-            </label>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="bruteforce_readiness" checked />
-              Simulação de alvo para força bruta
-            </label>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="reset_exposure" checked />
-              Indícios de reset/reboot expostos
-            </label>
-            <label class="check">
-              <input type="checkbox" name="badTest" value="upnp_exposure" checked />
-              UPnP/SSDP ativo
-            </label>
+            <label class="check"><input type="checkbox" name="badTest" value="admin_panels" checked />Painéis admin HTTP/HTTPS</label>
+            <label class="check"><input type="checkbox" name="badTest" value="insecure_services" checked />Serviços inseguros</label>
+            <label class="check"><input type="checkbox" name="badTest" value="camera_rtsp" checked />Câmeras / DVR RTSP</label>
+            <label class="check"><input type="checkbox" name="badTest" value="segmentation" checked />Segmentação fraca</label>
+            <label class="check"><input type="checkbox" name="badTest" value="bruteforce_readiness" checked />Alvo para força bruta</label>
+            <label class="check"><input type="checkbox" name="badTest" value="reset_exposure" checked />Reset / reboot expostos</label>
+            <label class="check"><input type="checkbox" name="badTest" value="upnp_exposure" checked />UPnP / SSDP ativo</label>
           </div>
 
           <label class="check danger-check">
@@ -205,22 +182,10 @@
         </div>
 
         <div class="summary-grid">
-          <div>
-            <span>Hosts</span>
-            <strong id="badHostsCount">0</strong>
-          </div>
-          <div>
-            <span>Evidências</span>
-            <strong id="badEvidenceCount">0</strong>
-          </div>
-          <div>
-            <span>Altos</span>
-            <strong id="badHighCount">0</strong>
-          </div>
-          <div>
-            <span>Status</span>
-            <strong id="badOverallStatus">-</strong>
-          </div>
+          <div><span>Hosts</span><strong id="badHostsCount">0</strong></div>
+          <div><span>Evidências</span><strong id="badEvidenceCount">0</strong></div>
+          <div><span>Críticos/Altos</span><strong id="badHighCount">0</strong></div>
+          <div><span>Status</span><strong id="badOverallStatus">—</strong></div>
         </div>
 
         <div class="console" id="badAgentConsole"></div>
@@ -230,7 +195,7 @@
         <div class="panel-head">
           <div>
             <h2>Resultado do test_bad_agent</h2>
-            <p id="badAgentSubtitle">A IA é usada apenas para explicar os achados; os testes continuam controlados.</p>
+            <p id="badAgentSubtitle">IA usada apenas para explicar achados; testes continuam controlados.</p>
           </div>
           <div class="status-pill idle" id="badAgentReportStatus">vazio</div>
         </div>
@@ -240,6 +205,7 @@
       </section>
     </main>
 
+    <!-- ── Network Performance ────────────────────────── -->
     <main class="layout tab-view" id="performanceTab">
       <section class="panel controls">
         <h2>Network Performance</h2>
@@ -280,11 +246,11 @@
 
           <label>
             API key da IA
-            <input id="perfAiApiKey" type="password" placeholder="Opcional: não é salva" autocomplete="off" />
+            <input id="perfAiApiKey" type="password" placeholder="Opcional — não é salva" autocomplete="off" />
           </label>
 
           <button type="button" class="secondary" id="loadPerfAiModels">Carregar modelos disponíveis</button>
-          <p class="model-status" id="perfAiModelStatus">Modelos só podem ser carregados depois de informar a API key.</p>
+          <p class="model-status" id="perfAiModelStatus">Informe a API key para carregar modelos.</p>
 
           <button type="submit">Analisar performance</button>
         </form>
@@ -300,22 +266,10 @@
         </div>
 
         <div class="summary-grid">
-          <div>
-            <span>Broadcast/s</span>
-            <strong id="perfBroadcastPps">0</strong>
-          </div>
-          <div>
-            <span>Talkers</span>
-            <strong id="perfTalkers">0</strong>
-          </div>
-          <div>
-            <span>Download</span>
-            <strong id="perfDownload">-</strong>
-          </div>
-          <div>
-            <span>Status</span>
-            <strong id="perfOverallStatus">-</strong>
-          </div>
+          <div><span>Broadcast/s</span><strong id="perfBroadcastPps">0</strong></div>
+          <div><span>Talkers</span><strong id="perfTalkers">0</strong></div>
+          <div><span>Download</span><strong id="perfDownload">—</strong></div>
+          <div><span>Status</span><strong id="perfOverallStatus">—</strong></div>
         </div>
 
         <div class="console" id="performanceConsole"></div>
@@ -325,7 +279,7 @@
         <div class="panel-head">
           <div>
             <h2>Network Performance Report</h2>
-            <p id="performanceSubtitle">A análise usa dados locais, amostra passiva e speed test.</p>
+            <p id="performanceSubtitle">Dados locais, amostra passiva e speed test.</p>
           </div>
           <div class="status-pill idle" id="performanceReportStatus">vazio</div>
         </div>

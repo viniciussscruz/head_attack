@@ -55,7 +55,6 @@ const perfOverallStatus = document.querySelector("#perfOverallStatus");
 const performanceSubtitle = document.querySelector("#performanceSubtitle");
 const performanceReportStatus = document.querySelector("#performanceReportStatus");
 const performanceReport = document.querySelector("#performanceReport");
-
 const hostsCount = document.querySelector("#hostsCount");
 const portsCount = document.querySelector("#portsCount");
 const highCount = document.querySelector("#highCount");
@@ -65,41 +64,19 @@ let activeSource = null;
 let activeBadSource = null;
 let activePerformanceSource = null;
 
+/* ── Severity helpers ───────────────────────────────────── */
+
+const SEV_LABELS = { critical: "Crítico", high: "Alto", medium: "Médio", low: "Baixo", info: "Info" };
+const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
+
+function sevLabel(sev) {
+  return SEV_LABELS[sev] || sev;
+}
+
+/* ── Tab switching ──────────────────────────────────────── */
+
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => switchTab(button.dataset.tab));
-});
-
-scanForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await startScan();
-});
-
-scheduleForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await createSchedule();
-});
-
-badAgentForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await startBadAgent();
-});
-
-performanceForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await startPerformanceAnalysis();
-});
-
-loadAiModels.addEventListener("click", async () => {
-  await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus);
-});
-
-loadPerfAiModels.addEventListener("click", async () => {
-  await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus);
-});
-
-refreshReports.addEventListener("click", () => {
-  loadReports();
-  loadSchedules();
 });
 
 function switchTab(tabName) {
@@ -109,6 +86,18 @@ function switchTab(tabName) {
   performanceTab.classList.toggle("active", tabName === "performance");
 }
 
+/* ── Event listeners ────────────────────────────────────── */
+
+scanForm.addEventListener("submit", async (event) => { event.preventDefault(); await startScan(); });
+scheduleForm.addEventListener("submit", async (event) => { event.preventDefault(); await createSchedule(); });
+badAgentForm.addEventListener("submit", async (event) => { event.preventDefault(); await startBadAgent(); });
+performanceForm.addEventListener("submit", async (event) => { event.preventDefault(); await startPerformanceAnalysis(); });
+loadAiModels.addEventListener("click", async () => { await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus); });
+loadPerfAiModels.addEventListener("click", async () => { await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus); });
+refreshReports.addEventListener("click", () => { loadReports(); loadSchedules(); });
+
+/* ── Scan ───────────────────────────────────────────────── */
+
 async function startScan() {
   resetLive();
   setStatus("rodando", "warn");
@@ -116,16 +105,13 @@ async function startScan() {
   const response = await fetch("/api/scans", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      target: targetInput.value.trim(),
-      profile: profileInput.value,
-    }),
+    body: JSON.stringify({ target: targetInput.value.trim(), profile: profileInput.value }),
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
     setStatus("erro", "bad");
-    addLine("erro", error.detail || "Nao foi possivel iniciar o scan.");
+    addLine("erro", error.detail || "Não foi possível iniciar o scan.");
     return;
   }
 
@@ -135,19 +121,10 @@ async function startScan() {
 }
 
 function streamScan(scanId) {
-  if (activeSource) {
-    activeSource.close();
-  }
-
+  if (activeSource) activeSource.close();
   activeSource = new EventSource(`/api/scans/${scanId}/events`);
-  activeSource.onmessage = (event) => {
-    const payload = JSON.parse(event.data);
-    handleEvent(payload, scanId);
-  };
-  activeSource.onerror = () => {
-    addLine("stream", "Conexao de eventos encerrada.");
-    activeSource.close();
-  };
+  activeSource.onmessage = (event) => handleEvent(JSON.parse(event.data), scanId);
+  activeSource.onerror = () => { addLine("stream", "Conexão de eventos encerrada."); activeSource.close(); };
 }
 
 function handleEvent(payload, scanId) {
@@ -155,28 +132,25 @@ function handleEvent(payload, scanId) {
   const message = payload.message || "";
   addLine(event, message);
 
-  if (event === "host_found") {
-    hostsCount.textContent = String(Number(hostsCount.textContent) + 1);
-  }
+  if (event === "host_found") hostsCount.textContent = String(Number(hostsCount.textContent) + 1);
 
-  if (event === "host_scanned" && payload.data && payload.data.host) {
-    const openPorts = payload.data.host.open_ports || [];
-    portsCount.textContent = String(Number(portsCount.textContent) + openPorts.length);
+  if (event === "host_scanned" && payload.data?.host) {
+    portsCount.textContent = String(Number(portsCount.textContent) + (payload.data.host.open_ports || []).length);
   }
 
   if (event === "finished") {
     const report = payload.data;
     applySummary(report.summary || {});
-    setStatus("concluido", statusClass(report.summary?.overall_status));
+    setStatus("concluído", statusClass(report.summary?.overall_status));
     renderReport(report);
-    addLine("relatorio", "Relatorio visual atualizado no painel.");
+    addLine("relatorio", "Relatório visual atualizado.");
     loadReports();
   }
 
-  if (event === "failed") {
-    setStatus("falhou", "bad");
-  }
+  if (event === "failed") setStatus("falhou", "bad");
 }
+
+/* ── Bad Agent ──────────────────────────────────────────── */
 
 async function startBadAgent() {
   resetBadAgent();
@@ -199,7 +173,7 @@ async function startBadAgent() {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
     setBadStatus("erro", "bad");
-    addBadLine("erro", error.detail || "Nao foi possivel iniciar o test_bad_agent.");
+    addBadLine("erro", error.detail || "Não foi possível iniciar o test_bad_agent.");
     return;
   }
 
@@ -208,42 +182,28 @@ async function startBadAgent() {
   streamBadAgent(data.agent_id);
 }
 
-async function loadAvailableAiModels(endpointInput, keyInput, modelSelect, statusElement) {
-  statusElement.textContent = "Carregando modelos da API...";
-  const response = await fetch("/api/ai/models", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ai_endpoint: endpointInput.value.trim(),
-      ai_api_key: keyInput.value.trim() || null,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    statusElement.textContent = `Não foi possível carregar modelos. HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}`;
-    return;
-  }
-
-  const data = await response.json();
-  statusElement.textContent = data.message || "Modelos carregados.";
-  if (!data.models || !data.models.length) {
-    return;
-  }
-
-  const current = modelSelect.value;
-  modelSelect.innerHTML = "";
-  for (const model of data.models) {
-    const option = document.createElement("option");
-    option.value = model;
-    option.textContent = model;
-    option.selected = model === current;
-    modelSelect.appendChild(option);
-  }
-  if (!modelSelect.value && data.models.includes("gpt-4.1-mini")) {
-    modelSelect.value = "gpt-4.1-mini";
-  }
+function streamBadAgent(agentId) {
+  if (activeBadSource) activeBadSource.close();
+  activeBadSource = new EventSource(`/api/bad-agent/${agentId}/events`);
+  activeBadSource.onmessage = (event) => handleBadAgentEvent(JSON.parse(event.data));
+  activeBadSource.onerror = () => { addBadLine("stream", "Conexão de eventos encerrada."); activeBadSource.close(); };
 }
+
+function handleBadAgentEvent(payload) {
+  const event = payload.event || "info";
+  addBadLine(event, payload.message || "");
+
+  if (event === "host_found") badHostsCount.textContent = String(Number(badHostsCount.textContent) + 1);
+
+  if (event === "finished") {
+    renderBadAgentReport(payload.data);
+    setBadStatus("concluído", statusClass(payload.data.summary?.overall_status));
+  }
+
+  if (event === "failed") setBadStatus("falhou", "bad");
+}
+
+/* ── Performance ────────────────────────────────────────── */
 
 async function startPerformanceAnalysis() {
   resetPerformance();
@@ -275,25 +235,15 @@ async function startPerformanceAnalysis() {
 }
 
 function streamPerformance(analysisId) {
-  if (activePerformanceSource) {
-    activePerformanceSource.close();
-  }
-
+  if (activePerformanceSource) activePerformanceSource.close();
   activePerformanceSource = new EventSource(`/api/performance/${analysisId}/events`);
-  activePerformanceSource.onmessage = (event) => {
-    const payload = JSON.parse(event.data);
-    handlePerformanceEvent(payload);
-  };
-  activePerformanceSource.onerror = () => {
-    addPerformanceLine("stream", "Conexao de eventos encerrada.");
-    activePerformanceSource.close();
-  };
+  activePerformanceSource.onmessage = (event) => handlePerformanceEvent(JSON.parse(event.data));
+  activePerformanceSource.onerror = () => { addPerformanceLine("stream", "Conexão de eventos encerrada."); activePerformanceSource.close(); };
 }
 
 function handlePerformanceEvent(payload) {
   const event = payload.event || "info";
-  const message = payload.message || "";
-  addPerformanceLine(event, message);
+  addPerformanceLine(event, payload.message || "");
 
   if (event === "broadcast_done") {
     perfBroadcastPps.textContent = payload.data.packets_per_second ?? "0";
@@ -305,14 +255,255 @@ function handlePerformanceEvent(payload) {
   }
 
   if (event === "finished") {
-    const report = payload.data;
-    renderPerformanceReport(report);
-    setPerformanceStatus("concluido", statusClass(report.summary?.overall_status));
+    renderPerformanceReport(payload.data);
+    setPerformanceStatus("concluído", statusClass(payload.data.summary?.overall_status));
   }
 
-  if (event === "failed") {
-    setPerformanceStatus("falhou", "bad");
+  if (event === "failed") setPerformanceStatus("falhou", "bad");
+}
+
+/* ── AI models ──────────────────────────────────────────── */
+
+async function loadAvailableAiModels(endpointInput, keyInput, modelSelect, statusElement) {
+  statusElement.textContent = "Carregando modelos da API…";
+  const response = await fetch("/api/ai/models", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ai_endpoint: endpointInput.value.trim(), ai_api_key: keyInput.value.trim() || null }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    statusElement.textContent = `Não foi possível carregar. HTTP ${response.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`;
+    return;
   }
+
+  const data = await response.json();
+  statusElement.textContent = data.message || "Modelos carregados.";
+  if (!data.models?.length) return;
+
+  const current = modelSelect.value;
+  modelSelect.innerHTML = "";
+  for (const model of data.models) {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = model;
+    option.selected = model === current;
+    modelSelect.appendChild(option);
+  }
+  if (!modelSelect.value && data.models.includes("gpt-4.1-mini")) modelSelect.value = "gpt-4.1-mini";
+}
+
+/* ── Schedules ──────────────────────────────────────────── */
+
+async function createSchedule() {
+  const response = await fetch("/api/schedules", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      target: targetInput.value.trim(),
+      profile: profileInput.value,
+      interval_minutes: Number(intervalInput.value),
+      run_now: runNowInput.checked,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
+    addLine("erro", error.detail || "Não foi possível criar agendamento.");
+    return;
+  }
+
+  const schedule = await response.json();
+  addLine("agenda", `Agendamento criado: ${schedule.id}`);
+  await loadSchedules();
+}
+
+async function loadSchedules() {
+  const response = await fetch("/api/schedules");
+  if (!response.ok) return;
+  const schedules = await response.json();
+  schedulesEl.innerHTML = "";
+
+  if (!schedules.length) {
+    schedulesEl.innerHTML = '<div class="item"><p>Nenhum agendamento ativo.</p></div>';
+    return;
+  }
+
+  for (const schedule of schedules) {
+    const item = document.createElement("div");
+    item.className = "item";
+    item.innerHTML = `
+      <strong>${escapeHtml(schedule.target)} a cada ${schedule.interval_minutes} min</strong>
+      <p>Último scan: ${schedule.last_scan_id || "—"}<br />Próximo: ${formatDate(schedule.next_run_at)}</p>
+      <div class="item-actions">
+        <button class="secondary" data-remove="${schedule.id}" style="width:auto;padding:5px 10px;font-size:12px">Remover</button>
+      </div>
+    `;
+    schedulesEl.appendChild(item);
+  }
+
+  schedulesEl.querySelectorAll("[data-remove]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await fetch(`/api/schedules/${button.dataset.remove}`, { method: "DELETE" });
+      await loadSchedules();
+    });
+  });
+}
+
+/* ── Reports list ───────────────────────────────────────── */
+
+async function loadReports() {
+  const response = await fetch("/api/reports");
+  if (!response.ok) {
+    reportsEl.innerHTML = '<div class="item"><p>Não foi possível carregar relatórios.</p></div>';
+    return;
+  }
+
+  const reports = await response.json();
+  reportsEl.innerHTML = "";
+
+  if (!reports.length) {
+    reportsEl.innerHTML = '<div class="item"><p>Nenhum relatório gerado ainda.</p></div>';
+    return;
+  }
+
+  for (const report of reports) {
+    const counts = report.findings || {};
+    const highs = (counts.critical || 0) + (counts.high || 0);
+    const item = document.createElement("div");
+    item.className = "item";
+    item.innerHTML = `
+      <strong>${escapeHtml(report.target || "—")} · ${escapeHtml(report.status || "—")}</strong>
+      <p>${formatDate(report.finished_at)} · hosts: ${report.hosts ?? 0} · críticos/altos: ${highs}</p>
+      <div class="item-actions">
+        <button class="secondary" data-view-report="${report.id}" style="width:auto;padding:5px 10px;font-size:12px">Ver painel</button>
+        <a href="${report.markdown_url}">Markdown</a>
+        <a href="${report.json_url}">JSON</a>
+      </div>
+    `;
+    reportsEl.appendChild(item);
+  }
+
+  reportsEl.querySelectorAll("[data-view-report]").forEach((button) => {
+    button.addEventListener("click", async () => { await openSavedReport(button.dataset.viewReport); });
+  });
+}
+
+async function openSavedReport(scanId) {
+  const response = await fetch(`/api/scans/${scanId}/report.json`);
+  if (!response.ok) {
+    reportContent.className = "empty-state";
+    reportContent.textContent = "Não foi possível abrir este relatório.";
+    return;
+  }
+  renderReport(await response.json());
+  document.querySelector("#visualReport").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ── Report renderers ───────────────────────────────────── */
+
+function renderReport(report) {
+  const summary = report.summary || {};
+  const counts = summary.findings_by_severity || {};
+  const highTotal = (counts.critical || 0) + (counts.high || 0);
+  const status = summary.overall_status || "ok";
+  reportSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at)} · ${summary.hosts_found || 0} hosts`;
+  reportStatus.textContent = status;
+  reportStatus.className = `status-pill ${statusClass(status)}`;
+  reportContent.className = "report-body";
+
+  const findings = report.findings || [];
+  const hosts = report.hosts || [];
+  const hostMap = new Map(hosts.map((h) => [h.ip, h]));
+
+  reportContent.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", status)}
+      ${metricCard("Hosts ativos", summary.hosts_found || 0)}
+      ${metricCard("Portas abertas", summary.open_ports || 0)}
+      ${metricCard("Críticos/Altos", highTotal)}
+    </div>
+
+    ${buildSection("Prioridade de correção", findings.length, `
+      ${buildFilterBar(findings)}
+      <div class="finding-list">
+        ${findings.length ? findings.map((f) => findingCard(f, hostMap)).join("") : '<div class="empty-state">Nenhum achado relevante nos testes automáticos.</div>'}
+      </div>
+    `)}
+
+    ${buildSection("Acertos encontrados", 0, `
+      <div class="pass-grid">${passCards(report).join("")}</div>
+    `)}
+
+    ${buildSection("Dispositivos e atalhos", hosts.length, `
+      <div class="host-grid">
+        ${hosts.length ? hosts.map(hostCard).join("") : '<div class="empty-state">Nenhum host ativo encontrado.</div>'}
+      </div>
+    `)}
+
+    ${buildSection("Checklist manual", (report.manual_checklist || []).length, `
+      <div class="checklist">${(report.manual_checklist || []).map(checkItem).join("")}</div>
+    `, true)}
+  `;
+
+  setupInteractivity(reportContent);
+}
+
+function renderBadAgentReport(report) {
+  const summary = report.summary || {};
+  const counts = summary.by_severity || {};
+  const highTotal = (counts.critical || 0) + (counts.high || 0);
+  badHostsCount.textContent = summary.hosts_found ?? badHostsCount.textContent;
+  badEvidenceCount.textContent = summary.total_evidence ?? "0";
+  badHighCount.textContent = String(highTotal);
+  badOverallStatus.textContent = summary.overall_status || "—";
+  badAgentSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at)} · ${summary.total_evidence || 0} evidências`;
+  badAgentReportStatus.textContent = summary.overall_status || "ok";
+  badAgentReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
+  badAgentReport.className = "report-body";
+
+  const evidence = report.evidence || [];
+  const aiAnalysis = normalizeAiAnalysis(report.ai_analysis);
+  const tokens = aiAnalysis.token_usage || {};
+
+  badAgentReport.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", summary.overall_status || "ok")}
+      ${metricCard("Hosts", summary.hosts_found || 0)}
+      ${metricCard("Evidências", summary.total_evidence || 0)}
+      ${metricCard("Críticos/Altos", highTotal)}
+    </div>
+
+    <div class="agent-safety">
+      <strong>Limites de segurança ativos</strong>
+      <span>Sem senhas</span>
+      <span>Sem exploits</span>
+      <span>Sem reset/reboot</span>
+      <span>Frame RTSP só se marcado</span>
+    </div>
+
+    ${buildSection("Evidências adversárias controladas", evidence.length, `
+      ${buildFilterBar(evidence)}
+      <div class="finding-list">
+        ${evidence.length ? evidence.map(agentEvidenceCard).join("") : '<div class="empty-state">Nenhuma evidência encontrada nos testes selecionados.</div>'}
+      </div>
+    `)}
+
+    ${buildSection("Análise da IA", 0, `
+      <div class="ai-usage">
+        <span>${aiAnalysis.used_api ? "IA usada" : "Análise local"}</span>
+        <span>Modelo: ${escapeHtml(aiAnalysis.model || "—")}</span>
+        <span>Prompt: ${tokens.prompt_tokens || 0}</span>
+        <span>Resposta: ${tokens.completion_tokens || 0}</span>
+        <span>Total: ${tokens.total_tokens || 0}</span>
+      </div>
+      ${aiAnalysis.fallback_reason ? `<p class="ai-note">${escapeHtml(aiAnalysis.fallback_reason)}</p>` : ""}
+      <pre class="ai-analysis">${escapeHtml(aiAnalysis.content || "Sem análise disponível.")}</pre>
+    `, true)}
+  `;
+
+  setupInteractivity(badAgentReport);
 }
 
 function renderPerformanceReport(report) {
@@ -326,49 +517,172 @@ function renderPerformanceReport(report) {
   performanceReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
   perfBroadcastPps.textContent = summary.broadcast_pps ?? "0";
   perfTalkers.textContent = summary.top_talkers ?? "0";
-  perfDownload.textContent = speed.status === "ok" ? `${speed.download_mbps} Mbps` : "-";
-  perfOverallStatus.textContent = summary.overall_status || "-";
+  perfDownload.textContent = speed.status === "ok" ? `${speed.download_mbps} Mbps` : "—";
+  perfOverallStatus.textContent = summary.overall_status || "—";
   performanceReport.className = "report-body";
+
+  const findings = report.findings || [];
+  const talkers = broadcast.talkers || [];
 
   performanceReport.innerHTML = `
     <div class="report-metrics">
       ${metricCard("Status", summary.overall_status || "ok")}
       ${metricCard("Broadcast/s", summary.broadcast_pps || 0)}
       ${metricCard("Talkers", summary.top_talkers || 0)}
-      ${metricCard("Speed", speed.status === "ok" ? `${speed.download_mbps} Mbps` : speed.status || "skipped")}
+      ${metricCard("Speed", speed.status === "ok" ? `${speed.download_mbps} Mbps` : speed.status || "—")}
     </div>
 
-    <div class="report-section">
-      <h3>Maiores emissores de broadcast/multicast</h3>
+    ${buildSection("Maiores emissores broadcast/multicast", talkers.length, `
       <div class="host-grid">
-        ${(broadcast.talkers || []).length ? broadcast.talkers.map(talkerCard).join("") : `<div class="empty-state">${escapeHtml(broadcast.message || "Nenhum pacote capturado na amostra.")}</div>`}
+        ${talkers.length ? talkers.map(talkerCard).join("") : `<div class="empty-state">${escapeHtml(broadcast.message || "Nenhum pacote capturado na amostra.")}</div>`}
       </div>
-    </div>
+    `)}
 
-    <div class="report-section">
-      <h3>Speed test</h3>
-      ${speedCard(speed)}
-    </div>
+    ${buildSection("Speed test", 0, speedCard(speed))}
 
-    <div class="report-section">
-      <h3>Achados de performance</h3>
+    ${buildSection("Achados de performance", findings.length, `
+      ${buildFilterBar(findings)}
       <div class="finding-list">
-        ${(report.findings || []).map(performanceFindingCard).join("")}
+        ${findings.length ? findings.map(performanceFindingCard).join("") : '<div class="empty-state">Nenhum achado de performance.</div>'}
       </div>
-    </div>
+    `)}
 
-    <div class="report-section">
-      <h3>Análise da IA</h3>
+    ${buildSection("Análise da IA", 0, `
       <div class="ai-usage">
         <span>${aiAnalysis.used_api ? "IA usada" : "Análise local"}</span>
-        <span>Modelo: ${escapeHtml(aiAnalysis.model || "-")}</span>
+        <span>Modelo: ${escapeHtml(aiAnalysis.model || "—")}</span>
         <span>Prompt: ${tokens.prompt_tokens || 0}</span>
         <span>Resposta: ${tokens.completion_tokens || 0}</span>
         <span>Total: ${tokens.total_tokens || 0}</span>
       </div>
       ${aiAnalysis.fallback_reason ? `<p class="ai-note">${escapeHtml(aiAnalysis.fallback_reason)}</p>` : ""}
       <pre class="ai-analysis">${escapeHtml(aiAnalysis.content || "Sem análise disponível.")}</pre>
+    `, true)}
+  `;
+
+  setupInteractivity(performanceReport);
+}
+
+/* ── Section & filter builders ──────────────────────────── */
+
+function buildSection(title, count, body, collapsedByDefault = false) {
+  const countBadge = count > 0 ? `<span class="section-count">${count}</span>` : "";
+  const collapsed = collapsedByDefault ? "collapsed" : "";
+  return `
+    <div class="report-section ${collapsed}">
+      <div class="section-header">
+        <div class="section-header-left">
+          <h3>${escapeHtml(title)}</h3>${countBadge}
+        </div>
+        <span class="toggle-icon">▾</span>
+      </div>
+      <div class="section-body">
+        ${body || '<div class="empty-state">Sem itens.</div>'}
+      </div>
     </div>
+  `;
+}
+
+function buildFilterBar(items) {
+  if (!items.length) return "";
+  const counts = {};
+  items.forEach((item) => {
+    const s = item.severity || "info";
+    counts[s] = (counts[s] || 0) + 1;
+  });
+  const hasSeverities = SEV_ORDER.some((s) => counts[s]);
+  if (!hasSeverities) return "";
+
+  const buttons = SEV_ORDER
+    .filter((s) => counts[s] > 0)
+    .map((s) => `<button class="filter-btn sev-${s}" type="button" data-filter="${s}">${sevLabel(s)} <span class="badge">${counts[s]}</span></button>`)
+    .join("");
+
+  return `
+    <div class="filter-bar">
+      <button class="filter-btn active" type="button" data-filter="all">Todos <span class="badge">${items.length}</span></button>
+      ${buttons}
+    </div>
+  `;
+}
+
+function setupInteractivity(container) {
+  container.querySelectorAll(".section-header").forEach((header) => {
+    header.addEventListener("click", () => {
+      header.closest(".report-section").classList.toggle("collapsed");
+    });
+  });
+
+  container.querySelectorAll(".filter-bar").forEach((bar) => {
+    bar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-filter]");
+      if (!btn) return;
+      const filter = btn.dataset.filter;
+      bar.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const body = bar.closest(".section-body");
+      if (!body) return;
+      body.querySelectorAll(".finding[data-severity]").forEach((el) => {
+        el.style.display = filter === "all" || el.dataset.severity === filter ? "" : "none";
+      });
+    });
+  });
+}
+
+/* ── Card builders ──────────────────────────────────────── */
+
+function metricCard(label, value) {
+  return `<div><span>${escapeHtml(String(label))}</span><strong>${escapeHtml(String(value))}</strong></div>`;
+}
+
+function findingCard(finding, hostMap) {
+  const targetLink = linkForFinding(finding, hostMap);
+  return `
+    <article class="finding" data-severity="${escapeHtml(finding.severity)}">
+      <div class="finding-header">
+        <span class="severity ${escapeHtml(finding.severity)}">${sevLabel(finding.severity)}</span>
+        <h4>${escapeHtml(finding.title)}</h4>
+      </div>
+      <p><strong>Alvo:</strong> ${targetLink}</p>
+      <p>${escapeHtml(finding.detail)}</p>
+      <p><strong>Correção:</strong> ${escapeHtml(finding.correction)}</p>
+    </article>
+  `;
+}
+
+function agentEvidenceCard(item) {
+  const links = (item.links || [])
+    .map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`)
+    .join("");
+  const media = item.media
+    ? `<figure class="agent-media"><img src="${escapeHtml(item.media.url)}" alt="${escapeHtml(item.media.caption || "Frame RTSP")}" /><figcaption>${escapeHtml(item.media.caption || "")}</figcaption></figure>`
+    : "";
+  return `
+    <article class="finding" data-severity="${escapeHtml(item.severity)}">
+      <div class="finding-header">
+        <span class="severity ${escapeHtml(item.severity)}">${sevLabel(item.severity)}</span>
+        <h4>${escapeHtml(item.title)}</h4>
+      </div>
+      <p><strong>Alvo:</strong> <code>${escapeHtml(item.target)}</code></p>
+      <p>${escapeHtml(item.detail)}</p>
+      <p><strong>Prova segura:</strong> ${escapeHtml(item.proof)}</p>
+      <p><strong>Correção:</strong> ${escapeHtml(item.correction)}</p>
+      <div class="device-links">${links || "<span>Sem link direto.</span>"}</div>
+      ${media}
+    </article>
+  `;
+}
+
+function performanceFindingCard(finding) {
+  return `
+    <article class="finding" data-severity="${escapeHtml(finding.severity)}">
+      <div class="finding-header">
+        <span class="severity ${escapeHtml(finding.severity)}">${sevLabel(finding.severity)}</span>
+        <h4>${escapeHtml(finding.title)}</h4>
+      </div>
+      <p>${escapeHtml(finding.detail)}</p>
+      <p><strong>Recomendação:</strong> ${escapeHtml(finding.recommendation)}</p>
+    </article>
   `;
 }
 
@@ -377,7 +691,7 @@ function talkerCard(talker) {
     .map(([name, count]) => `<span class="port-chip medium">${escapeHtml(name)}: ${count}</span>`)
     .join("");
   return `
-    <article class="host-card">
+    <article class="talker-card">
       <div class="host-head">
         <div>
           <strong>${escapeHtml(talker.mac)}</strong>
@@ -398,372 +712,23 @@ function speedCard(speed) {
       ${metricCard("Download", `${speed.download_mbps} Mbps`)}
       ${metricCard("Upload", `${speed.upload_mbps} Mbps`)}
       ${metricCard("Ping", `${speed.ping_ms} ms`)}
-      ${metricCard("Servidor", `${speed.server?.sponsor || "-"} ${speed.server?.name || ""}`)}
+      ${metricCard("Servidor", `${speed.server?.sponsor || "—"} ${speed.server?.name || ""}`)}
     </div>
   `;
-}
-
-function performanceFindingCard(finding) {
-  return `
-    <article class="finding ${escapeHtml(finding.severity)}">
-      <span class="severity">${escapeHtml(finding.severity)}</span>
-      <h4>${escapeHtml(finding.title)}</h4>
-      <p>${escapeHtml(finding.detail)}</p>
-      <p><strong>Recomendação:</strong> ${escapeHtml(finding.recommendation)}</p>
-    </article>
-  `;
-}
-
-function streamBadAgent(agentId) {
-  if (activeBadSource) {
-    activeBadSource.close();
-  }
-
-  activeBadSource = new EventSource(`/api/bad-agent/${agentId}/events`);
-  activeBadSource.onmessage = (event) => {
-    const payload = JSON.parse(event.data);
-    handleBadAgentEvent(payload);
-  };
-  activeBadSource.onerror = () => {
-    addBadLine("stream", "Conexao de eventos encerrada.");
-    activeBadSource.close();
-  };
-}
-
-function handleBadAgentEvent(payload) {
-  const event = payload.event || "info";
-  const message = payload.message || "";
-  addBadLine(event, message);
-
-  if (event === "host_found") {
-    badHostsCount.textContent = String(Number(badHostsCount.textContent) + 1);
-  }
-
-  if (event === "finished") {
-    const report = payload.data;
-    renderBadAgentReport(report);
-    setBadStatus("concluido", statusClass(report.summary?.overall_status));
-  }
-
-  if (event === "failed") {
-    setBadStatus("falhou", "bad");
-  }
-}
-
-function renderBadAgentReport(report) {
-  const summary = report.summary || {};
-  const counts = summary.by_severity || {};
-  const highTotal = (counts.critical || 0) + (counts.high || 0);
-  badHostsCount.textContent = summary.hosts_found ?? badHostsCount.textContent;
-  badEvidenceCount.textContent = summary.total_evidence ?? "0";
-  badHighCount.textContent = String(highTotal);
-  badOverallStatus.textContent = summary.overall_status || "-";
-  badAgentSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at)} · ${summary.total_evidence || 0} evidências`;
-  badAgentReportStatus.textContent = summary.overall_status || "ok";
-  badAgentReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
-  badAgentReport.className = "report-body";
-
-  const evidence = report.evidence || [];
-  const aiAnalysis = normalizeAiAnalysis(report.ai_analysis);
-  const tokens = aiAnalysis.token_usage || {};
-  badAgentReport.innerHTML = `
-    <div class="report-metrics">
-      ${metricCard("Status", summary.overall_status || "ok")}
-      ${metricCard("Hosts", summary.hosts_found || 0)}
-      ${metricCard("Evidências", summary.total_evidence || 0)}
-      ${metricCard("Críticos/altos", highTotal)}
-    </div>
-
-    <div class="agent-safety">
-      <strong>Testes executados com limites de segurança</strong>
-      <span>Não tentou senhas</span>
-      <span>Não executou exploit</span>
-      <span>Não acionou reset/reboot</span>
-      <span>Frame RTSP só quando marcado</span>
-    </div>
-
-    <div class="report-section">
-      <h3>Evidências adversárias controladas</h3>
-      <div class="finding-list">
-        ${evidence.length ? evidence.map(agentEvidenceCard).join("") : '<div class="empty-state">Nenhuma evidência encontrada nos testes selecionados.</div>'}
-      </div>
-    </div>
-
-    <div class="report-section">
-      <h3>Análise da IA</h3>
-      <div class="ai-usage">
-        <span>${aiAnalysis.used_api ? "IA usada" : "Análise local"}</span>
-        <span>Modelo: ${escapeHtml(aiAnalysis.model || "-")}</span>
-        <span>Prompt: ${tokens.prompt_tokens || 0}</span>
-        <span>Resposta: ${tokens.completion_tokens || 0}</span>
-        <span>Total: ${tokens.total_tokens || 0}</span>
-      </div>
-      ${aiAnalysis.fallback_reason ? `<p class="ai-note">${escapeHtml(aiAnalysis.fallback_reason)}</p>` : ""}
-      <pre class="ai-analysis">${escapeHtml(aiAnalysis.content || "Sem análise disponível.")}</pre>
-    </div>
-  `;
-}
-
-function normalizeAiAnalysis(value) {
-  if (value && typeof value === "object") {
-    return {
-      content: value.content || "",
-      used_api: Boolean(value.used_api),
-      provider: value.provider || "unknown",
-      model: value.model || "-",
-      token_usage: value.token_usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-      fallback_reason: value.fallback_reason || null,
-    };
-  }
-  return {
-    content: value || "",
-    used_api: false,
-    provider: "legacy",
-    model: "legacy/local",
-    token_usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-    fallback_reason: "Relatório antigo ou análise local sem metadados de tokens.",
-  };
-}
-
-function agentEvidenceCard(item) {
-  const links = (item.links || []).map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("");
-  const media = item.media ? `<figure class="agent-media"><img src="${escapeHtml(item.media.url)}" alt="${escapeHtml(item.media.caption || "Frame RTSP capturado")}" /><figcaption>${escapeHtml(item.media.caption || "")}</figcaption></figure>` : "";
-  return `
-    <article class="finding ${escapeHtml(item.severity)}">
-      <span class="severity">${escapeHtml(item.severity)}</span>
-      <h4>${escapeHtml(item.title)}</h4>
-      <p><strong>Alvo:</strong> <code>${escapeHtml(item.target)}</code></p>
-      <p>${escapeHtml(item.detail)}</p>
-      <p><strong>Prova segura:</strong> ${escapeHtml(item.proof)}</p>
-      <p><strong>Correção:</strong> ${escapeHtml(item.correction)}</p>
-      <div class="device-links">${links || '<span>Sem link direto.</span>'}</div>
-      ${media}
-    </article>
-  `;
-}
-
-function applySummary(summary) {
-  hostsCount.textContent = summary.hosts_found ?? hostsCount.textContent;
-  portsCount.textContent = summary.open_ports ?? portsCount.textContent;
-  const counts = summary.findings_by_severity || {};
-  highCount.textContent = String((counts.critical || 0) + (counts.high || 0));
-  overallStatus.textContent = summary.overall_status || "-";
-}
-
-async function createSchedule() {
-  const response = await fetch("/api/schedules", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      target: targetInput.value.trim(),
-      profile: profileInput.value,
-      interval_minutes: Number(intervalInput.value),
-      run_now: runNowInput.checked,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
-    addLine("erro", error.detail || "Nao foi possivel criar agendamento.");
-    return;
-  }
-
-  const schedule = await response.json();
-  addLine("agenda", `Agendamento criado: ${schedule.id}`);
-  await loadSchedules();
-}
-
-async function loadSchedules() {
-  const response = await fetch("/api/schedules");
-  if (!response.ok) {
-    return;
-  }
-
-  const schedules = await response.json();
-  schedulesEl.innerHTML = "";
-  if (!schedules.length) {
-    schedulesEl.innerHTML = '<div class="item"><p>Nenhum agendamento ativo.</p></div>';
-    return;
-  }
-
-  for (const schedule of schedules) {
-    const item = document.createElement("div");
-    item.className = "item";
-    item.innerHTML = `
-      <strong>${escapeHtml(schedule.target)} a cada ${schedule.interval_minutes} min</strong>
-      <p>Ultimo scan: ${schedule.last_scan_id || "-"}<br />Proximo: ${formatDate(schedule.next_run_at)}</p>
-      <button class="secondary" data-remove="${schedule.id}">Remover</button>
-    `;
-    schedulesEl.appendChild(item);
-  }
-
-  schedulesEl.querySelectorAll("[data-remove]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await fetch(`/api/schedules/${button.dataset.remove}`, { method: "DELETE" });
-      await loadSchedules();
-    });
-  });
-}
-
-async function loadReports() {
-  const response = await fetch("/api/reports");
-  if (!response.ok) {
-    reportsEl.innerHTML = '<div class="item"><p>Nao foi possivel carregar relatorios.</p></div>';
-    return;
-  }
-
-  const reports = await response.json();
-  reportsEl.innerHTML = "";
-  if (!reports.length) {
-    reportsEl.innerHTML = '<div class="item"><p>Nenhum relatorio gerado ainda.</p></div>';
-    return;
-  }
-
-  for (const report of reports) {
-    const counts = report.findings || {};
-    const item = document.createElement("div");
-    item.className = "item";
-    item.innerHTML = `
-      <strong>${escapeHtml(report.target || "-")} · ${escapeHtml(report.status || "-")}</strong>
-      <p>${formatDate(report.finished_at)} · hosts: ${report.hosts ?? 0} · altos: ${(counts.critical || 0) + (counts.high || 0)}</p>
-      <button class="secondary" data-view-report="${report.id}">Ver painel</button>
-      <a href="${report.markdown_url}">Markdown</a>
-      <a href="${report.json_url}">JSON</a>
-    `;
-    reportsEl.appendChild(item);
-  }
-
-  reportsEl.querySelectorAll("[data-view-report]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await openSavedReport(button.dataset.viewReport);
-    });
-  });
-}
-
-async function openSavedReport(scanId) {
-  const response = await fetch(`/api/scans/${scanId}/report.json`);
-  if (!response.ok) {
-    reportContent.className = "empty-state";
-    reportContent.textContent = "Nao foi possivel abrir este relatorio.";
-    return;
-  }
-
-  const report = await response.json();
-  renderReport(report);
-  document.querySelector("#visualReport").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function renderReport(report) {
-  const summary = report.summary || {};
-  const counts = summary.findings_by_severity || {};
-  const highTotal = (counts.critical || 0) + (counts.high || 0);
-  const status = summary.overall_status || "ok";
-  reportSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at)} · ${summary.hosts_found || 0} hosts`;
-  reportStatus.textContent = status;
-  reportStatus.className = `status-pill ${statusClass(status)}`;
-  reportContent.className = "report-body";
-
-  const findings = report.findings || [];
-  const hosts = report.hosts || [];
-  const hostMap = new Map(hosts.map((host) => [host.ip, host]));
-
-  reportContent.innerHTML = `
-    <div class="report-metrics">
-      ${metricCard("Status", status)}
-      ${metricCard("Hosts ativos", summary.hosts_found || 0)}
-      ${metricCard("Portas abertas", summary.open_ports || 0)}
-      ${metricCard("Criticos/altos", highTotal)}
-    </div>
-
-    <div class="report-section">
-      <h3>Prioridade de correção</h3>
-      <div class="finding-list">
-        ${findings.length ? findings.map((finding) => findingCard(finding, hostMap)).join("") : '<div class="empty-state">Nenhum achado relevante nos testes automaticos.</div>'}
-      </div>
-    </div>
-
-    <div class="report-section">
-      <h3>Acertos encontrados</h3>
-      <div class="pass-grid">
-        ${passCards(report).join("")}
-      </div>
-    </div>
-
-    <div class="report-section">
-      <h3>Dispositivos e atalhos</h3>
-      <div class="host-grid">
-        ${hosts.length ? hosts.map(hostCard).join("") : '<div class="empty-state">Nenhum host ativo encontrado.</div>'}
-      </div>
-    </div>
-
-    <div class="report-section">
-      <h3>Checklist manual</h3>
-      <div class="checklist">
-        ${(report.manual_checklist || []).map(checkItem).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function metricCard(label, value) {
-  return `
-    <div>
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
-    </div>
-  `;
-}
-
-function findingCard(finding, hostMap) {
-  const targetLink = linkForFinding(finding, hostMap);
-  return `
-    <article class="finding ${escapeHtml(finding.severity)}">
-      <div>
-        <span class="severity">${escapeHtml(finding.severity)}</span>
-        <h4>${escapeHtml(finding.title)}</h4>
-        <p><strong>Alvo:</strong> ${targetLink}</p>
-        <p>${escapeHtml(finding.detail)}</p>
-        <p><strong>Correção:</strong> ${escapeHtml(finding.correction)}</p>
-      </div>
-    </article>
-  `;
-}
-
-function linkForFinding(finding, hostMap) {
-  const target = finding.target || "";
-  const match = target.match(/^(\d+\.\d+\.\d+\.\d+)(?::(\d+))?$/);
-  if (!match) {
-    return `<code>${escapeHtml(target)}</code>`;
-  }
-
-  const ip = match[1];
-  const port = Number(match[2]);
-  if (port && isWebPort(port)) {
-    return `<a href="${deviceUrl(ip, port)}" target="_blank" rel="noopener noreferrer">${escapeHtml(target)} abrir painel</a>`;
-  }
-
-  const host = hostMap.get(ip);
-  const firstPanel = host ? webPorts(host)[0] : null;
-  if (firstPanel) {
-    return `<code>${escapeHtml(target)}</code> · <a href="${deviceUrl(ip, firstPanel.port)}" target="_blank" rel="noopener noreferrer">abrir dispositivo</a>`;
-  }
-
-  return `<code>${escapeHtml(target)}</code>`;
 }
 
 function passCards(report) {
   const hosts = report.hosts || [];
-  const allPorts = hosts.flatMap((host) => host.open_ports || []);
+  const allPorts = hosts.flatMap((h) => h.open_ports || []);
   const findings = report.findings || [];
-  const hasSeverity = (severity) => findings.some((finding) => finding.severity === severity);
-  const hasPort = (port) => allPorts.some((item) => item.port === port);
-  const cards = [
-    passCard(!hasSeverity("critical"), "Sem crítico automático", "Nenhum achado crítico foi detectado pelos testes leves."),
-    passCard(!hasPort(23), "Telnet não detectado", "Boa notícia: a porta Telnet não apareceu aberta nos hosts testados."),
+  const hasSeverity = (s) => findings.some((f) => f.severity === s);
+  const hasPort = (p) => allPorts.some((item) => item.port === p);
+  return [
+    passCard(!hasSeverity("critical"), "Sem crítico automático", "Nenhum achado crítico detectado pelos testes leves."),
+    passCard(!hasPort(23), "Telnet não detectado", "Porta Telnet não apareceu aberta nos hosts testados."),
     passCard(!hasPort(21), "FTP não detectado", "FTP não apareceu aberto nos hosts testados."),
     passCard(!hasPort(3389), "RDP não detectado", "RDP não apareceu aberto nos hosts testados."),
   ];
-  return cards;
 }
 
 function passCard(ok, title, text) {
@@ -789,41 +754,20 @@ function hostCard(host) {
         <span>${ports.length} porta(s)</span>
       </div>
       <div class="role-list">
-        ${(host.role_hints || []).map((role) => `<code>${escapeHtml(role)}</code>`).join("") || "<code>sem perfil claro</code>"}
+        ${(host.role_hints || []).map((r) => `<code>${escapeHtml(r)}</code>`).join("") || "<code>sem perfil claro</code>"}
       </div>
       <div class="port-list">
         ${ports.length ? ports.map(portChip).join("") : "<span>Nenhuma porta comum aberta.</span>"}
       </div>
       <div class="device-links">
-        ${links.length ? links.map((item) => `<a href="${deviceUrl(host.ip, item.port)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>`).join("") : '<span>Sem painel web detectado.</span>'}
+        ${links.length ? links.map((item) => `<a href="${deviceUrl(host.ip, item.port)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>`).join("") : "<span>Sem painel web detectado.</span>"}
       </div>
     </article>
   `;
 }
 
 function portChip(port) {
-  const label = `${port.port}/${port.service}`;
-  return `<span class="port-chip ${escapeHtml(port.severity)}">${escapeHtml(label)}</span>`;
-}
-
-function webPorts(host) {
-  return (host.open_ports || [])
-    .filter((port) => isWebPort(port.port))
-    .map((port) => ({ port: port.port, label: `${schemeForPort(port.port).toUpperCase()} ${port.port}` }));
-}
-
-function isWebPort(port) {
-  return [80, 443, 5000, 5001, 8000, 8080, 8443, 8888, 9000].includes(Number(port));
-}
-
-function schemeForPort(port) {
-  return [443, 5001, 8443].includes(Number(port)) ? "https" : "http";
-}
-
-function deviceUrl(ip, port) {
-  const scheme = schemeForPort(port);
-  const defaultPort = (scheme === "http" && Number(port) === 80) || (scheme === "https" && Number(port) === 443);
-  return `${scheme}://${ip}${defaultPort ? "" : `:${port}`}`;
+  return `<span class="port-chip ${escapeHtml(port.severity)}">${escapeHtml(`${port.port}/${port.service}`)}</span>`;
 }
 
 function checkItem(item) {
@@ -836,12 +780,69 @@ function checkItem(item) {
   `;
 }
 
+/* ── Link helpers ───────────────────────────────────────── */
+
+function linkForFinding(finding, hostMap) {
+  const target = finding.target || "";
+  const match = target.match(/^(\d+\.\d+\.\d+\.\d+)(?::(\d+))?$/);
+  if (!match) return `<code>${escapeHtml(target)}</code>`;
+  const ip = match[1];
+  const port = Number(match[2]);
+  if (port && isWebPort(port)) return `<a href="${deviceUrl(ip, port)}" target="_blank" rel="noopener noreferrer">${escapeHtml(target)} — abrir painel</a>`;
+  const host = hostMap.get(ip);
+  const firstPanel = host ? webPorts(host)[0] : null;
+  if (firstPanel) return `<code>${escapeHtml(target)}</code> · <a href="${deviceUrl(ip, firstPanel.port)}" target="_blank" rel="noopener noreferrer">abrir dispositivo</a>`;
+  return `<code>${escapeHtml(target)}</code>`;
+}
+
+function webPorts(host) {
+  return (host.open_ports || [])
+    .filter((p) => isWebPort(p.port))
+    .map((p) => ({ port: p.port, label: `${schemeForPort(p.port).toUpperCase()} ${p.port}` }));
+}
+
+function isWebPort(port) {
+  return [80, 443, 5000, 5001, 8000, 8080, 8443, 8888, 9000].includes(Number(port));
+}
+
+function schemeForPort(port) {
+  return [443, 5001, 8443].includes(Number(port)) ? "https" : "http";
+}
+
+function deviceUrl(ip, port) {
+  const scheme = schemeForPort(port);
+  const def = (scheme === "http" && Number(port) === 80) || (scheme === "https" && Number(port) === 443);
+  return `${scheme}://${ip}${def ? "" : `:${port}`}`;
+}
+
+/* ── Status helpers ─────────────────────────────────────── */
+
+function applySummary(summary) {
+  hostsCount.textContent = summary.hosts_found ?? hostsCount.textContent;
+  portsCount.textContent = summary.open_ports ?? portsCount.textContent;
+  const counts = summary.findings_by_severity || {};
+  highCount.textContent = String((counts.critical || 0) + (counts.high || 0));
+  overallStatus.textContent = summary.overall_status || "—";
+}
+
+function setStatus(text, cls) { scanStatus.textContent = text; scanStatus.className = `status-pill ${cls || "idle"}`; }
+function setBadStatus(text, cls) { badAgentStatus.textContent = text; badAgentStatus.className = `status-pill ${cls || "idle"}`; }
+function setPerformanceStatus(text, cls) { performanceStatus.textContent = text; performanceStatus.className = `status-pill ${cls || "idle"}`; }
+
+function statusClass(status) {
+  if (status === "critical" || status === "attention") return "bad";
+  if (status === "review") return "warn";
+  return "ok";
+}
+
+/* ── Resets ─────────────────────────────────────────────── */
+
 function resetLive() {
   consoleEl.innerHTML = "";
   hostsCount.textContent = "0";
   portsCount.textContent = "0";
   highCount.textContent = "0";
-  overallStatus.textContent = "-";
+  overallStatus.textContent = "—";
 }
 
 function resetBadAgent() {
@@ -849,7 +850,7 @@ function resetBadAgent() {
   badHostsCount.textContent = "0";
   badEvidenceCount.textContent = "0";
   badHighCount.textContent = "0";
-  badOverallStatus.textContent = "-";
+  badOverallStatus.textContent = "—";
   badAgentReport.className = "empty-state";
   badAgentReport.textContent = "Aguardando resultado do test_bad_agent.";
   badAgentReportStatus.textContent = "rodando";
@@ -859,69 +860,53 @@ function resetPerformance() {
   performanceConsole.innerHTML = "";
   perfBroadcastPps.textContent = "0";
   perfTalkers.textContent = "0";
-  perfDownload.textContent = "-";
-  perfOverallStatus.textContent = "-";
+  perfDownload.textContent = "—";
+  perfOverallStatus.textContent = "—";
   performanceReport.className = "empty-state";
   performanceReport.textContent = "Aguardando resultado da análise.";
   performanceReportStatus.textContent = "rodando";
 }
 
-function setStatus(text, className) {
-  scanStatus.textContent = text;
-  scanStatus.className = `status-pill ${className || "idle"}`;
+/* ── Console lines ──────────────────────────────────────── */
+
+function addConsoleLine(targetEl, kind, message) {
+  const line = document.createElement("div");
+  line.className = "console-line";
+  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  line.innerHTML = `<time>${now}</time><span class="console-tag ${escapeHtml(kind)}">${escapeHtml(kind)}</span><span class="console-msg">${escapeHtml(message)}</span>`;
+  targetEl.appendChild(line);
+  targetEl.scrollTop = targetEl.scrollHeight;
 }
 
-function setBadStatus(text, className) {
-  badAgentStatus.textContent = text;
-  badAgentStatus.className = `status-pill ${className || "idle"}`;
-}
+function addLine(kind, message) { addConsoleLine(consoleEl, kind, message); }
+function addBadLine(kind, message) { addConsoleLine(badAgentConsole, kind, message); }
+function addPerformanceLine(kind, message) { addConsoleLine(performanceConsole, kind, message); }
 
-function setPerformanceStatus(text, className) {
-  performanceStatus.textContent = text;
-  performanceStatus.className = `status-pill ${className || "idle"}`;
-}
+/* ── Misc utils ─────────────────────────────────────────── */
 
-function statusClass(status) {
-  if (status === "critical" || status === "attention") {
-    return "bad";
+function normalizeAiAnalysis(value) {
+  if (value && typeof value === "object") {
+    return {
+      content: value.content || "",
+      used_api: Boolean(value.used_api),
+      provider: value.provider || "unknown",
+      model: value.model || "—",
+      token_usage: value.token_usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      fallback_reason: value.fallback_reason || null,
+    };
   }
-  if (status === "review") {
-    return "warn";
-  }
-  return "ok";
-}
-
-function addLine(kind, message) {
-  const line = document.createElement("div");
-  line.className = "console-line";
-  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
-  line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
-  consoleEl.appendChild(line);
-  consoleEl.scrollTop = consoleEl.scrollHeight;
-}
-
-function addBadLine(kind, message) {
-  const line = document.createElement("div");
-  line.className = "console-line";
-  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
-  line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
-  badAgentConsole.appendChild(line);
-  badAgentConsole.scrollTop = badAgentConsole.scrollHeight;
-}
-
-function addPerformanceLine(kind, message) {
-  const line = document.createElement("div");
-  line.className = "console-line";
-  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
-  line.innerHTML = `<time>${now}</time><span><strong class="${kind}">${escapeHtml(kind)}</strong> ${escapeHtml(message)}</span>`;
-  performanceConsole.appendChild(line);
-  performanceConsole.scrollTop = performanceConsole.scrollHeight;
+  return {
+    content: value || "",
+    used_api: false,
+    provider: "legacy",
+    model: "local",
+    token_usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    fallback_reason: "Relatório antigo ou análise local sem metadados de tokens.",
+  };
 }
 
 function formatDate(value) {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "—";
   return new Date(value).toLocaleString("pt-BR");
 }
 
@@ -933,6 +918,8 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+/* ── Init ───────────────────────────────────────────────── */
 
 serviceStatus.textContent = "online";
 loadReports();
