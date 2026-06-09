@@ -189,7 +189,8 @@ async function loadAvailableAiModels() {
   });
 
   if (!response.ok) {
-    aiModelStatus.textContent = "Não foi possível carregar modelos.";
+    const detail = await response.text();
+    aiModelStatus.textContent = `Não foi possível carregar modelos. HTTP ${response.status}${detail ? `: ${detail.slice(0, 180)}` : ""}`;
     return;
   }
 
