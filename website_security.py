@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 from bad_agent import DEFAULT_AI_MODEL, local_ai_result
 from scanner import REPORTS_DIR, utc_now
+from utils import emit_event, save_json_report
 
 
 WEBSITE_REPORTS_DIR = REPORTS_DIR / "website_security"
@@ -74,20 +75,20 @@ async def run_website_security(
     normalized_url = normalize_url(url)
     started = utc_now()
     started_ts = time.perf_counter()
-    await _emit(emit, "started", f"Website Security iniciado em {normalized_url}", {"scan_id": scan_id})
-    await _emit(emit, "guardrail", "Modo seguro: sem login, sem força bruta, sem payload ofensivo e sem fuzzing pesado.", {})
+    await emit_event(emit, "started", f"Website Security iniciado em {normalized_url}", {"scan_id": scan_id})
+    await emit_event(emit, "guardrail", "Modo seguro: sem login, sem força bruta, sem payload ofensivo e sem fuzzing pesado.", {})
 
-    await _emit(emit, "phase", "Coletando página inicial e cabeçalhos HTTP.", {})
+    await emit_event(emit, "phase", "Coletando página inicial e cabeçalhos HTTP.", {})
     page = await fetch_url(normalized_url, method="GET", max_bytes=250_000)
-    await _emit(emit, "http_done", "Página inicial coletada.", {"status": page.get("status"), "final_url": page.get("final_url")})
+    await emit_event(emit, "http_done", "Página inicial coletada.", {"status": page.get("status"), "final_url": page.get("final_url")})
 
     final_url = page.get("final_url") or normalized_url
     parsed = urllib.parse.urlparse(final_url)
 
-    await _emit(emit, "phase", "Validando TLS e certificado.", {})
+    await emit_event(emit, "phase", "Validando TLS e certificado.", {})
     tls = await inspect_tls(parsed.hostname, parsed.port or 443) if parsed.scheme == "https" and parsed.hostname else {"status": "skipped", "message": "Site não usa HTTPS."}
 
-    await _emit(emit, "phase", "Analisando headers, cookies, CORS, formulários e conteúdo misto.", {})
+    await emit_event(emit, "phase", "Analisando headers, cookies, CORS, formulários e conteúdo misto.", {})
     findings = []
     findings.extend(check_security_headers(page, final_url))
     findings.extend(check_cookies(page, final_url))
@@ -99,13 +100,13 @@ async def run_website_security(
 
     sensitive_results = []
     if include_sensitive_paths:
-        await _emit(emit, "phase", "Checando arquivos sensíveis comuns com requisições leves.", {})
+        await emit_event(emit, "phase", "Checando arquivos sensíveis comuns com requisições leves.", {})
         sensitive_results = await check_sensitive_paths(final_url)
         findings.extend(sensitive_results["findings"])
 
     summary = build_summary(findings, started_ts)
     ai_analysis = await maybe_website_ai(ai_config, page, tls, cors, sensitive_results, findings, summary)
-    await _emit(
+    await emit_event(
         emit,
         "ai_analysis",
         "Análise por IA concluída." if ai_analysis["used_api"] else "Análise local concluída; nenhum token de IA foi consumido.",
@@ -133,7 +134,7 @@ async def run_website_security(
         },
     }
     save_website_report(scan_id, report)
-    await _emit(emit, "finished", "Website Security concluído.", report)
+    await emit_event(emit, "finished", "Website Security concluído.", report)
     return report
 
 
@@ -524,12 +525,4 @@ def page_title(body: str) -> str | None:
 
 
 def save_website_report(scan_id: str, report: dict[str, Any]) -> None:
-    WEBSITE_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (WEBSITE_REPORTS_DIR / f"{scan_id}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-async def _emit(emit: Callable[[dict[str, Any]], Any], event: str, message: str, data: dict[str, Any]) -> None:
-    payload = {"ts": utc_now(), "event": event, "message": message, "data": data}
-    maybe = emit(payload)
-    if asyncio.iscoroutine(maybe):
-        await maybe
+    save_json_report(WEBSITE_REPORTS_DIR / f"{scan_id}.json", report)

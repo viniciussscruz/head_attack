@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from bad_agent import DEFAULT_AI_MODEL, local_ai_result
 from scanner import REPORTS_DIR, parse_neighbors, utc_now
+from utils import emit_event, save_json_report
 
 
 PERFORMANCE_REPORTS_DIR = REPORTS_DIR / "performance"
@@ -30,24 +31,24 @@ async def run_network_performance(
     iface = interface or default_interface()
     sample_seconds = max(5, min(sample_seconds, 60))
 
-    await _emit(emit, "started", "Network Performance iniciado.", {"analysis_id": analysis_id, "interface": iface})
-    await _emit(emit, "phase", "Coletando rotas, interfaces e vizinhos locais.", {})
+    await emit_event(emit, "started", "Network Performance iniciado.", {"analysis_id": analysis_id, "interface": iface})
+    await emit_event(emit, "phase", "Coletando rotas, interfaces e vizinhos locais.", {})
     local = collect_local_network_state()
 
-    await _emit(emit, "phase", f"Amostrando broadcast/multicast por {sample_seconds}s.", {"interface": iface})
+    await emit_event(emit, "phase", f"Amostrando broadcast/multicast por {sample_seconds}s.", {"interface": iface})
     broadcast = await sample_broadcasts(iface, sample_seconds)
-    await _emit(emit, "broadcast_done", "Amostra de broadcast/multicast concluída.", broadcast)
+    await emit_event(emit, "broadcast_done", "Amostra de broadcast/multicast concluída.", broadcast)
 
     speed = {"status": "skipped", "message": "Speed test não solicitado."}
     if run_speedtest:
-        await _emit(emit, "phase", "Rodando speed test de internet.", {})
+        await emit_event(emit, "phase", "Rodando speed test de internet.", {})
         speed = await run_internet_speedtest()
-        await _emit(emit, "speedtest_done", "Speed test concluído.", speed)
+        await emit_event(emit, "speedtest_done", "Speed test concluído.", speed)
 
     findings = build_performance_findings(local, broadcast, speed)
     summary = build_summary(findings, broadcast, speed, started_ts)
     ai_analysis = await maybe_performance_ai(ai_config, local, broadcast, speed, findings, summary)
-    await _emit(
+    await emit_event(
         emit,
         "ai_analysis",
         "Análise por IA concluída." if ai_analysis["used_api"] else "Análise local concluída; nenhum token de IA foi consumido.",
@@ -68,7 +69,7 @@ async def run_network_performance(
         "ai_analysis": ai_analysis,
     }
     save_performance_report(analysis_id, report)
-    await _emit(emit, "finished", "Network Performance concluído.", report)
+    await emit_event(emit, "finished", "Network Performance concluído.", report)
     return report
 
 
@@ -429,12 +430,6 @@ def parse_ip_json(args: list[str]) -> list[dict[str, Any]]:
 
 
 def save_performance_report(analysis_id: str, report: dict[str, Any]) -> None:
-    PERFORMANCE_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (PERFORMANCE_REPORTS_DIR / f"{analysis_id}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    save_json_report(PERFORMANCE_REPORTS_DIR / f"{analysis_id}.json", report)
 
 
-async def _emit(emit: Callable[[dict[str, Any]], Any], event: str, message: str, data: dict[str, Any]) -> None:
-    payload = {"ts": utc_now(), "event": event, "message": message, "data": data}
-    maybe = emit(payload)
-    if asyncio.iscoroutine(maybe):
-        await maybe

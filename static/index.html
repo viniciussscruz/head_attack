@@ -16,63 +16,69 @@
           </svg>
         </div>
         <div>
-          <p class="eyebrow">Auditoria defensiva de rede</p>
+          <p class="eyebrow" data-i18n="eyebrow">Auditoria defensiva de rede</p>
           <h1>Security Network Audit</h1>
         </div>
       </div>
       <div class="top-actions">
         <nav class="tabs" aria-label="Abas principais">
-          <button type="button" class="tab-button active" data-tab="dashboard">Dashboard</button>
-          <button type="button" class="tab-button" data-tab="badAgent">Bad Agent</button>
-          <button type="button" class="tab-button" data-tab="performance">Performance</button>
-          <button type="button" class="tab-button" data-tab="websiteSecurity">Website Security</button>
+          <button type="button" class="tab-button active" data-tab="dashboard" data-i18n="tabDashboard">Dashboard</button>
+          <button type="button" class="tab-button" data-tab="badAgent" data-i18n="tabBadAgent">Bad Agent</button>
+          <button type="button" class="tab-button" data-tab="performance" data-i18n="tabPerformance">Performance</button>
+          <button type="button" class="tab-button" data-tab="websiteSecurity" data-i18n="tabWebsite">Website Security</button>
         </nav>
-        <div class="status-pill" id="serviceStatus">pronto</div>
+        <div class="lang-switcher" aria-label="Language">
+          <button class="lang-btn active" data-lang="pt" title="Português (Brasil)">🇧🇷</button>
+          <button class="lang-btn" data-lang="en" title="English (US)">🇺🇸</button>
+          <button class="lang-btn" data-lang="es" title="Español (España)">🇪🇸</button>
+          <button class="lang-btn" data-lang="fr" title="Français (France)">🇫🇷</button>
+        </div>
+        <div class="status-pill" id="serviceStatus">online</div>
       </div>
     </header>
 
     <!-- ── Dashboard ─────────────────────────────────── -->
     <main class="layout tab-view active" id="dashboardTab">
       <section class="panel controls">
-        <h2>Novo teste</h2>
+        <h2 data-i18n="newTest">Novo teste</h2>
         <form id="scanForm">
           <label>
-            Rede autorizada
+            <span data-i18n="authorizedNetwork">Rede autorizada</span>
             <input id="target" name="target" value="192.168.15.0/24" autocomplete="off" required />
           </label>
 
           <label>
-            Perfil
+            <span data-i18n="profile">Perfil</span>
             <select id="profile" name="profile">
-              <option value="quick">Rápido e leve</option>
-              <option value="full">Completo controlado</option>
+              <option value="quick" data-i18n="profileQuick">Rápido e leve</option>
+              <option value="full" data-i18n="profileFull">Completo controlado</option>
             </select>
           </label>
 
           <div class="actions">
-            <button type="submit">Rodar agora</button>
-            <button type="button" class="secondary" id="refreshReports">Atualizar</button>
+            <button type="submit" data-i18n="btnRun">Rodar agora</button>
+            <button type="button" class="secondary" id="refreshReports" data-i18n="btnRefresh">Atualizar</button>
           </div>
         </form>
 
         <div class="divider"></div>
 
-        <h2>Agendamento</h2>
+        <h2 data-i18n="schedule">Agendamento</h2>
         <form id="scheduleForm">
           <label>
-            Intervalo
+            <span data-i18n="interval">Intervalo</span>
             <select id="interval" name="interval">
-              <option value="30">30 minutos</option>
-              <option value="60" selected>1 hora</option>
-              <option value="360">6 horas</option>
-              <option value="1440">1 dia</option>
+              <option value="30" data-i18n="int30m">30 minutos</option>
+              <option value="60" selected data-i18n="int1h">1 hora</option>
+              <option value="360" data-i18n="int6h">6 horas</option>
+              <option value="1440" data-i18n="int1d">1 dia</option>
             </select>
           </label>
           <label class="check">
             <input id="runNow" type="checkbox" checked />
-            Executar a primeira checagem agora
+            <span data-i18n="runFirstNow">Executar a primeira checagem agora</span>
           </label>
-          <button type="submit" class="secondary">Criar agendamento</button>
+          <button type="submit" class="secondary" data-i18n="btnCreateSchedule">Criar agendamento</button>
         </form>
 
         <div id="schedules" class="list"></div>
@@ -81,17 +87,17 @@
       <section class="panel live">
         <div class="panel-head">
           <div>
-            <h2>Execução em tempo real</h2>
-            <p id="activeScan">Nenhum teste em execução.</p>
+            <h2 data-i18n="liveTitle">Execução em tempo real</h2>
+            <p id="activeScan" data-i18n="noScanRunning">Nenhum teste em execução.</p>
           </div>
-          <div class="status-pill idle" id="scanStatus">aguardando</div>
+          <div class="status-pill idle" id="scanStatus" data-i18n="statusWaiting">aguardando</div>
         </div>
 
         <div class="summary-grid">
-          <div><span>Hosts</span><strong id="hostsCount">0</strong></div>
-          <div><span>Portas</span><strong id="portsCount">0</strong></div>
-          <div><span>Críticos/Altos</span><strong id="highCount">0</strong></div>
-          <div><span>Status</span><strong id="overallStatus">—</strong></div>
+          <div><span data-i18n="labelHosts">Hosts</span><strong id="hostsCount">0</strong></div>
+          <div><span data-i18n="labelPorts">Portas</span><strong id="portsCount">0</strong></div>
+          <div><span data-i18n="labelCritHigh">Críticos/Altos</span><strong id="highCount">0</strong></div>
+          <div><span data-i18n="labelStatus">Status</span><strong id="overallStatus">—</strong></div>
         </div>
 
         <div class="console" id="console"></div>
@@ -100,8 +106,8 @@
       <section class="panel reports">
         <div class="panel-head">
           <div>
-            <h2>Relatórios salvos</h2>
-            <p>Abra para ver riscos, acertos e links de correção.</p>
+            <h2 data-i18n="savedReports">Relatórios salvos</h2>
+            <p data-i18n="savedReportsHint">Abra para ver riscos, acertos e links de correção.</p>
           </div>
         </div>
         <div id="reports" class="report-list"></div>
@@ -110,12 +116,12 @@
       <section class="panel report-detail" id="visualReport">
         <div class="panel-head">
           <div>
-            <h2>Relatório visual</h2>
-            <p id="reportSubtitle">Execute um teste ou abra um relatório salvo.</p>
+            <h2 data-i18n="visualReport">Relatório visual</h2>
+            <p id="reportSubtitle" data-i18n="runOrOpenReport">Execute um teste ou abra um relatório salvo.</p>
           </div>
-          <div class="status-pill idle" id="reportStatus">vazio</div>
+          <div class="status-pill idle" id="reportStatus" data-i18n="statusEmpty">vazio</div>
         </div>
-        <div id="reportContent" class="empty-state">
+        <div id="reportContent" class="empty-state" data-i18n="noReportSelected">
           Nenhum relatório selecionado ainda.
         </div>
       </section>
@@ -127,66 +133,66 @@
         <h2>test_bad_agent</h2>
         <form id="badAgentForm">
           <label>
-            Rede autorizada
+            <span data-i18n="authorizedNetwork">Rede autorizada</span>
             <input id="badAgentTarget" name="badAgentTarget" value="192.168.15.0/24" autocomplete="off" required />
           </label>
 
           <label>
-            Endpoint da IA
+            <span data-i18n="aiEndpoint">Endpoint da IA</span>
             <input id="aiEndpoint" name="aiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
           </label>
 
           <label>
-            Modelo
+            <span data-i18n="aiModel">Modelo</span>
             <select id="aiModel" name="aiModel">
               <option value="gpt-4.1-mini">gpt-4.1-mini</option>
             </select>
           </label>
 
           <label>
-            API key da IA
-            <input id="aiApiKey" name="aiApiKey" type="password" placeholder="Opcional — não é salva" autocomplete="off" />
+            <span data-i18n="aiApiKey">API key da IA</span>
+            <input id="aiApiKey" name="aiApiKey" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Opcional — não é salva" autocomplete="off" />
           </label>
 
-          <button type="button" class="secondary" id="loadAiModels">Carregar modelos disponíveis</button>
-          <p class="model-status" id="aiModelStatus">Informe a API key para carregar modelos.</p>
+          <button type="button" class="secondary" id="loadAiModels" data-i18n="btnLoadModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="aiModelStatus" data-i18n="enterKeyHint">Informe a API key para carregar modelos.</p>
 
           <div class="test-options">
-            <p class="option-help">
+            <p class="option-help" data-i18n="safeEvidencesHint">
               Evidências seguras — sem senhas, resets ou exploits.
             </p>
-            <label class="check"><input type="checkbox" name="badTest" value="admin_panels" checked />Painéis admin HTTP/HTTPS</label>
-            <label class="check"><input type="checkbox" name="badTest" value="insecure_services" checked />Serviços inseguros</label>
-            <label class="check"><input type="checkbox" name="badTest" value="camera_rtsp" checked />Câmeras / DVR RTSP</label>
-            <label class="check"><input type="checkbox" name="badTest" value="segmentation" checked />Segmentação fraca</label>
-            <label class="check"><input type="checkbox" name="badTest" value="bruteforce_readiness" checked />Alvo para força bruta</label>
-            <label class="check"><input type="checkbox" name="badTest" value="reset_exposure" checked />Reset / reboot expostos</label>
-            <label class="check"><input type="checkbox" name="badTest" value="upnp_exposure" checked />UPnP / SSDP ativo</label>
+            <label class="check"><input type="checkbox" name="badTest" value="admin_panels" checked /><span data-i18n="testAdminPanels">Painéis admin HTTP/HTTPS</span></label>
+            <label class="check"><input type="checkbox" name="badTest" value="insecure_services" checked /><span data-i18n="testInsecureServices">Serviços inseguros</span></label>
+            <label class="check"><input type="checkbox" name="badTest" value="camera_rtsp" checked /><span data-i18n="testCameraRtsp">Câmeras / DVR RTSP</span></label>
+            <label class="check"><input type="checkbox" name="badTest" value="segmentation" checked /><span data-i18n="testSegmentation">Segmentação fraca</span></label>
+            <label class="check"><input type="checkbox" name="badTest" value="bruteforce_readiness" checked /><span data-i18n="testBruteforce">Alvo para força bruta</span></label>
+            <label class="check"><input type="checkbox" name="badTest" value="reset_exposure" checked /><span data-i18n="testResetExposure">Reset / reboot expostos</span></label>
+            <label class="check"><input type="checkbox" name="badTest" value="upnp_exposure" checked /><span data-i18n="testUpnp">UPnP / SSDP ativo</span></label>
           </div>
 
           <label class="check danger-check">
             <input id="captureRtspFrame" type="checkbox" />
-            Capturar 1 frame RTSP sem credenciais quando o fluxo estiver aberto
+            <span data-i18n="captureRtsp">Capturar 1 frame RTSP sem credenciais quando o fluxo estiver aberto</span>
           </label>
 
-          <button type="submit">Rodar test_bad_agent</button>
+          <button type="submit" data-i18n="btnRunBadAgent">Rodar test_bad_agent</button>
         </form>
       </section>
 
       <section class="panel live">
         <div class="panel-head">
           <div>
-            <h2>Execução adversária controlada</h2>
-            <p id="badAgentActive">Nenhum agente em execução.</p>
+            <h2 data-i18n="badAgentLiveTitle">Execução adversária controlada</h2>
+            <p id="badAgentActive" data-i18n="noAgentRunning">Nenhum agente em execução.</p>
           </div>
-          <div class="status-pill idle" id="badAgentStatus">aguardando</div>
+          <div class="status-pill idle" id="badAgentStatus" data-i18n="statusWaiting">aguardando</div>
         </div>
 
         <div class="summary-grid">
-          <div><span>Hosts</span><strong id="badHostsCount">0</strong></div>
-          <div><span>Evidências</span><strong id="badEvidenceCount">0</strong></div>
-          <div><span>Críticos/Altos</span><strong id="badHighCount">0</strong></div>
-          <div><span>Status</span><strong id="badOverallStatus">—</strong></div>
+          <div><span data-i18n="labelHosts">Hosts</span><strong id="badHostsCount">0</strong></div>
+          <div><span data-i18n="labelEvidence">Evidências</span><strong id="badEvidenceCount">0</strong></div>
+          <div><span data-i18n="labelCritHigh">Críticos/Altos</span><strong id="badHighCount">0</strong></div>
+          <div><span data-i18n="labelStatus">Status</span><strong id="badOverallStatus">—</strong></div>
         </div>
 
         <div class="console" id="badAgentConsole"></div>
@@ -195,12 +201,12 @@
       <section class="panel report-detail">
         <div class="panel-head">
           <div>
-            <h2>Resultado do test_bad_agent</h2>
-            <p id="badAgentSubtitle">IA usada apenas para explicar achados; testes continuam controlados.</p>
+            <h2 data-i18n="badAgentReportTitle">Resultado do test_bad_agent</h2>
+            <p id="badAgentSubtitle" data-i18n="aiOnlyExplains">IA usada apenas para explicar achados; testes continuam controlados.</p>
           </div>
-          <div class="status-pill idle" id="badAgentReportStatus">vazio</div>
+          <div class="status-pill idle" id="badAgentReportStatus" data-i18n="statusEmpty">vazio</div>
         </div>
-        <div id="badAgentReport" class="empty-state">
+        <div id="badAgentReport" class="empty-state" data-i18n="noResultYet">
           Nenhum resultado ainda.
         </div>
       </section>
@@ -209,68 +215,68 @@
     <!-- ── Network Performance ────────────────────────── -->
     <main class="layout tab-view" id="performanceTab">
       <section class="panel controls">
-        <h2>Network Performance</h2>
+        <h2 data-i18n="tabPerformance">Network Performance</h2>
         <form id="performanceForm">
           <label>
-            Interface de rede
-            <input id="perfInterface" name="perfInterface" placeholder="Auto, ex: wlan0" autocomplete="off" />
+            <span data-i18n="networkInterface">Interface de rede</span>
+            <input id="perfInterface" name="perfInterface" data-i18n-placeholder="interfacePlaceholder" placeholder="Auto, ex: wlan0" autocomplete="off" />
           </label>
 
           <label>
-            Amostra de broadcast
+            <span data-i18n="broadcastSample">Amostra de broadcast</span>
             <select id="perfSampleSeconds" name="perfSampleSeconds">
-              <option value="10">10 segundos</option>
-              <option value="15" selected>15 segundos</option>
-              <option value="30">30 segundos</option>
-              <option value="60">60 segundos</option>
+              <option value="10" data-i18n="s10">10 segundos</option>
+              <option value="15" selected data-i18n="s15">15 segundos</option>
+              <option value="30" data-i18n="s30">30 segundos</option>
+              <option value="60" data-i18n="s60">60 segundos</option>
             </select>
           </label>
 
           <label class="check">
             <input id="runSpeedtest" type="checkbox" checked />
-            Rodar speed test de internet
+            <span data-i18n="runSpeedtest">Rodar speed test de internet</span>
           </label>
 
           <div class="divider"></div>
 
           <label>
-            Endpoint da IA
+            <span data-i18n="aiEndpoint">Endpoint da IA</span>
             <input id="perfAiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
           </label>
 
           <label>
-            Modelo
+            <span data-i18n="aiModel">Modelo</span>
             <select id="perfAiModel">
               <option value="gpt-4.1-mini">gpt-4.1-mini</option>
             </select>
           </label>
 
           <label>
-            API key da IA
-            <input id="perfAiApiKey" type="password" placeholder="Opcional — não é salva" autocomplete="off" />
+            <span data-i18n="aiApiKey">API key da IA</span>
+            <input id="perfAiApiKey" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Opcional — não é salva" autocomplete="off" />
           </label>
 
-          <button type="button" class="secondary" id="loadPerfAiModels">Carregar modelos disponíveis</button>
-          <p class="model-status" id="perfAiModelStatus">Informe a API key para carregar modelos.</p>
+          <button type="button" class="secondary" id="loadPerfAiModels" data-i18n="btnLoadModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="perfAiModelStatus" data-i18n="enterKeyHint">Informe a API key para carregar modelos.</p>
 
-          <button type="submit">Analisar performance</button>
+          <button type="submit" data-i18n="btnAnalyze">Analisar performance</button>
         </form>
       </section>
 
       <section class="panel live">
         <div class="panel-head">
           <div>
-            <h2>Execução da análise</h2>
-            <p id="performanceActive">Nenhuma análise em execução.</p>
+            <h2 data-i18n="perfLiveTitle">Execução da análise</h2>
+            <p id="performanceActive" data-i18n="noAnalysisRunning">Nenhuma análise em execução.</p>
           </div>
-          <div class="status-pill idle" id="performanceStatus">aguardando</div>
+          <div class="status-pill idle" id="performanceStatus" data-i18n="statusWaiting">aguardando</div>
         </div>
 
         <div class="summary-grid">
-          <div><span>Broadcast/s</span><strong id="perfBroadcastPps">0</strong></div>
-          <div><span>Talkers</span><strong id="perfTalkers">0</strong></div>
-          <div><span>Download</span><strong id="perfDownload">—</strong></div>
-          <div><span>Status</span><strong id="perfOverallStatus">—</strong></div>
+          <div><span data-i18n="labelBroadcast">Broadcast/s</span><strong id="perfBroadcastPps">0</strong></div>
+          <div><span data-i18n="labelTalkers">Talkers</span><strong id="perfTalkers">0</strong></div>
+          <div><span data-i18n="labelDownload">Download</span><strong id="perfDownload">—</strong></div>
+          <div><span data-i18n="labelStatus">Status</span><strong id="perfOverallStatus">—</strong></div>
         </div>
 
         <div class="console" id="performanceConsole"></div>
@@ -279,12 +285,12 @@
       <section class="panel report-detail">
         <div class="panel-head">
           <div>
-            <h2>Network Performance Report</h2>
-            <p id="performanceSubtitle">Dados locais, amostra passiva e speed test.</p>
+            <h2 data-i18n="perfReportTitle">Network Performance Report</h2>
+            <p id="performanceSubtitle" data-i18n="perfReportHint">Dados locais, amostra passiva e speed test.</p>
           </div>
-          <div class="status-pill idle" id="performanceReportStatus">vazio</div>
+          <div class="status-pill idle" id="performanceReportStatus" data-i18n="statusEmpty">vazio</div>
         </div>
-        <div id="performanceReport" class="empty-state">
+        <div id="performanceReport" class="empty-state" data-i18n="noResultYet">
           Nenhum resultado ainda.
         </div>
       </section>
@@ -293,63 +299,63 @@
     <!-- ── Website Security ────────────────────────────── -->
     <main class="layout tab-view" id="websiteSecurityTab">
       <section class="panel controls">
-        <h2>Website Security</h2>
+        <h2 data-i18n="tabWebsite">Website Security</h2>
         <form id="websiteSecurityForm">
           <label>
-            URL autorizada
-            <input id="websiteUrl" name="websiteUrl" placeholder="https://example.com" autocomplete="off" required />
+            <span data-i18n="authorizedUrl">URL autorizada</span>
+            <input id="websiteUrl" name="websiteUrl" data-i18n-placeholder="urlPlaceholder" placeholder="https://example.com" autocomplete="off" required />
           </label>
 
           <label class="check">
             <input id="websiteAuthorized" type="checkbox" />
-            Confirmo que tenho autorização para testar este site
+            <span data-i18n="confirmAuthorized">Confirmo que tenho autorização para testar este site</span>
           </label>
 
           <label class="check">
             <input id="websiteSensitivePaths" type="checkbox" checked />
-            Checar arquivos sensíveis comuns com requisições leves
+            <span data-i18n="checkSensitivePaths">Checar arquivos sensíveis comuns com requisições leves</span>
           </label>
 
           <div class="divider"></div>
 
           <label>
-            Endpoint da IA
+            <span data-i18n="aiEndpoint">Endpoint da IA</span>
             <input id="webAiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
           </label>
 
           <label>
-            Modelo
+            <span data-i18n="aiModel">Modelo</span>
             <select id="webAiModel">
               <option value="gpt-4.1-mini">gpt-4.1-mini</option>
             </select>
           </label>
 
           <label>
-            API key da IA
-            <input id="webAiApiKey" type="password" placeholder="Opcional — não é salva" autocomplete="off" />
+            <span data-i18n="aiApiKey">API key da IA</span>
+            <input id="webAiApiKey" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Opcional — não é salva" autocomplete="off" />
           </label>
 
-          <button type="button" class="secondary" id="loadWebAiModels">Carregar modelos disponíveis</button>
-          <p class="model-status" id="webAiModelStatus">Informe a API key para carregar modelos.</p>
+          <button type="button" class="secondary" id="loadWebAiModels" data-i18n="btnLoadModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="webAiModelStatus" data-i18n="enterKeyHint">Informe a API key para carregar modelos.</p>
 
-          <button type="submit">Testar website</button>
+          <button type="submit" data-i18n="btnTestWebsite">Testar website</button>
         </form>
       </section>
 
       <section class="panel live">
         <div class="panel-head">
           <div>
-            <h2>Execução da análise web</h2>
-            <p id="websiteActive">Nenhum teste em execução.</p>
+            <h2 data-i18n="webLiveTitle">Execução da análise web</h2>
+            <p id="websiteActive" data-i18n="noWebTestRunning">Nenhum teste em execução.</p>
           </div>
-          <div class="status-pill idle" id="websiteStatus">aguardando</div>
+          <div class="status-pill idle" id="websiteStatus" data-i18n="statusWaiting">aguardando</div>
         </div>
 
         <div class="summary-grid">
-          <div><span>Achados</span><strong id="webFindingsCount">0</strong></div>
-          <div><span>Críticos/Altos</span><strong id="webHighCount">0</strong></div>
-          <div><span>Status HTTP</span><strong id="webHttpStatus">—</strong></div>
-          <div><span>Status</span><strong id="webOverallStatus">—</strong></div>
+          <div><span data-i18n="labelFindings">Achados</span><strong id="webFindingsCount">0</strong></div>
+          <div><span data-i18n="labelCritHigh">Críticos/Altos</span><strong id="webHighCount">0</strong></div>
+          <div><span data-i18n="labelHttpStatus">Status HTTP</span><strong id="webHttpStatus">—</strong></div>
+          <div><span data-i18n="labelStatus">Status</span><strong id="webOverallStatus">—</strong></div>
         </div>
 
         <div class="console" id="websiteConsole"></div>
@@ -358,12 +364,12 @@
       <section class="panel report-detail">
         <div class="panel-head">
           <div>
-            <h2>Website Security Report</h2>
-            <p id="websiteSubtitle">Headers, TLS, cookies, formulários, CORS e exposição de arquivos.</p>
+            <h2 data-i18n="webReportTitle">Website Security Report</h2>
+            <p id="websiteSubtitle" data-i18n="webReportHint">Headers, TLS, cookies, formulários, CORS e exposição de arquivos.</p>
           </div>
-          <div class="status-pill idle" id="websiteReportStatus">vazio</div>
+          <div class="status-pill idle" id="websiteReportStatus" data-i18n="statusEmpty">vazio</div>
         </div>
-        <div id="websiteReport" class="empty-state">
+        <div id="websiteReport" class="empty-state" data-i18n="noResultYet">
           Nenhum resultado ainda.
         </div>
       </section>

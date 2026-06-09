@@ -24,6 +24,7 @@ from scanner import (
     utc_now,
     validate_target,
 )
+from utils import emit_event, save_json_report
 
 
 AGENT_MEDIA_DIR = REPORTS_DIR / "agent_media"
@@ -67,8 +68,8 @@ async def run_bad_agent(
 
     started = utc_now()
     started_ts = time.perf_counter()
-    await _emit(emit, "started", f"test_bad_agent iniciado em {network}", {"agent_id": agent_id, "tests": selected})
-    await _emit(
+    await emit_event(emit, "started", f"test_bad_agent iniciado em {network}", {"agent_id": agent_id, "tests": selected})
+    await emit_event(
         emit,
         "guardrail",
         "Modo seguro: sem brute force, sem exploits, sem senhas padrao e sem alteracao de configuracao.",
@@ -78,7 +79,7 @@ async def run_bad_agent(
     hosts = await discover_hosts(ip_list(network), emit)
     evidence: list[AgentEvidence] = []
 
-    await _emit(emit, "phase", f"Checando {len(hosts)} host(s) com portas sensiveis comuns.", {})
+    await emit_event(emit, "phase", f"Checando {len(hosts)} host(s) com portas sensiveis comuns.", {})
     scanned_hosts = await scan_agent_hosts(hosts, emit)
 
     if "admin_panels" in selected:
@@ -98,7 +99,7 @@ async def run_bad_agent(
 
     summary = summarize(evidence, len(hosts), started_ts)
     ai_analysis = await maybe_ai_analysis(ai_config, network=str(network), summary=summary, evidence=evidence)
-    await _emit(
+    await emit_event(
         emit,
         "ai_analysis",
         "Análise por IA concluída." if ai_analysis["used_api"] else "Análise local concluída; nenhum token de IA foi consumido.",
@@ -123,7 +124,7 @@ async def run_bad_agent(
         },
     }
     save_agent_report(agent_id, report)
-    await _emit(emit, "finished", "test_bad_agent concluído.", report)
+    await emit_event(emit, "finished", "test_bad_agent concluído.", report)
     return report
 
 
@@ -136,9 +137,9 @@ async def discover_hosts(hosts: list[str], emit: Callable[[dict[str, Any]], Any]
             probes = [tcp_connect(ip, port, timeout=0.35) for port in [80, 443, 22, 23, 445, 554, 8080]]
             if any(await asyncio.gather(*probes)):
                 alive.append(ip)
-                await _emit(emit, "host_found", f"Host com superfície exposta: {ip}", {"ip": ip})
+                await emit_event(emit, "host_found", f"Host com superfície exposta: {ip}", {"ip": ip})
 
-    await _emit(emit, "phase", f"Descobrindo hosts por sondagem TCP leve em {len(hosts)} endereços.", {})
+    await emit_event(emit, "phase", f"Descobrindo hosts por sondagem TCP leve em {len(hosts)} endereços.", {})
     await asyncio.gather(*(check(ip) for ip in hosts))
     return sorted(alive, key=lambda value: tuple(int(part) for part in value.split(".")))
 
@@ -152,14 +153,14 @@ async def scan_agent_hosts(hosts: list[str], emit: Callable[[dict[str, Any]], An
             ports = await scan_ports(ip, SENSITIVE_PORTS)
             result = {"ip": ip, "open_ports": [serialize_dataclass(port) for port in ports]}
             results.append(result)
-            await _emit(emit, "host_scanned", f"{ip}: {len(ports)} porta(s) sensível(eis) aberta(s).", result)
+            await emit_event(emit, "host_scanned", f"{ip}: {len(ports)} porta(s) sensível(eis) aberta(s).", result)
 
     await asyncio.gather(*(scan_one(ip) for ip in hosts))
     return sorted(results, key=lambda item: tuple(int(part) for part in item["ip"].split(".")))
 
 
 async def test_admin_panels(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Testando painéis HTTP/HTTPS acessíveis.", {"test": "admin_panels"})
+    await emit_event(emit, "test", "Testando painéis HTTP/HTTPS acessíveis.", {"test": "admin_panels"})
     evidence = []
     for host in hosts:
         ip = host["ip"]
@@ -183,7 +184,7 @@ async def test_admin_panels(hosts: list[dict[str, Any]], emit: Callable[[dict[st
 
 
 async def test_insecure_services(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Testando serviços inseguros ou sensíveis.", {"test": "insecure_services"})
+    await emit_event(emit, "test", "Testando serviços inseguros ou sensíveis.", {"test": "insecure_services"})
     notes = {
         21: ("FTP exposto", "high", "FTP pode expor credenciais e arquivos sem proteção adequada.", "Desativar FTP ou trocar por SFTP/VPN."),
         23: ("Telnet exposto", "critical", "Telnet transmite credenciais em texto claro.", "Desativar Telnet imediatamente."),
@@ -216,7 +217,7 @@ async def test_camera_rtsp(
     capture_rtsp_frame: bool,
     emit: Callable[[dict[str, Any]], Any],
 ) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Testando RTSP sem autenticação agressiva.", {"test": "camera_rtsp"})
+    await emit_event(emit, "test", "Testando RTSP sem autenticação agressiva.", {"test": "camera_rtsp"})
     evidence = []
     for host in hosts:
         ip = host["ip"]
@@ -245,7 +246,7 @@ async def test_camera_rtsp(
 
 
 async def test_segmentation(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Avaliando sinais de segmentação fraca.", {"test": "segmentation"})
+    await emit_event(emit, "test", "Avaliando sinais de segmentação fraca.", {"test": "segmentation"})
     web_hosts = [host for host in hosts if _ports(host, HTTP_PORTS)]
     camera_hosts = [host for host in hosts if _ports(host, {554})]
     smb_hosts = [host for host in hosts if _ports(host, {139, 445})]
@@ -276,7 +277,7 @@ async def test_segmentation(hosts: list[dict[str, Any]], emit: Callable[[dict[st
 
 
 async def test_bruteforce_readiness(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Simulando avaliação de força bruta sem tentar credenciais.", {"test": "bruteforce_readiness"})
+    await emit_event(emit, "test", "Simulando avaliação de força bruta sem tentar credenciais.", {"test": "bruteforce_readiness"})
     evidence = []
     brute_ports = {
         21: ("FTP", "high"),
@@ -318,7 +319,7 @@ async def test_bruteforce_readiness(hosts: list[dict[str, Any]], emit: Callable[
 
 
 async def test_reset_exposure(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Procurando indícios de reset/reboot sem acionar endpoints.", {"test": "reset_exposure"})
+    await emit_event(emit, "test", "Procurando indícios de reset/reboot sem acionar endpoints.", {"test": "reset_exposure"})
     evidence = []
     reset_pattern = re.compile(r"\b(reset|reboot|restart|factory|restore|reiniciar|restaurar|padr[aã]o de f[aá]brica)\b", re.I)
     for host in hosts:
@@ -344,7 +345,7 @@ async def test_reset_exposure(hosts: list[dict[str, Any]], emit: Callable[[dict[
 
 
 async def test_upnp_exposure(emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
-    await _emit(emit, "test", "Enviando descoberta SSDP única para detectar UPnP.", {"test": "upnp_exposure"})
+    await emit_event(emit, "test", "Enviando descoberta SSDP única para detectar UPnP.", {"test": "upnp_exposure"})
     devices = await ssdp_discover()
     evidence = []
     for device in devices:
@@ -475,7 +476,7 @@ async def capture_rtsp_snapshot(
     emit: Callable[[dict[str, Any]], Any],
 ) -> dict[str, str] | None:
     if not shutil.which("ffmpeg"):
-        await _emit(emit, "rtsp_snapshot", "ffmpeg não encontrado; frame RTSP não será capturado.", {"ip": ip})
+        await emit_event(emit, "rtsp_snapshot", "ffmpeg não encontrado; frame RTSP não será capturado.", {"ip": ip})
         return None
 
     AGENT_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
@@ -495,11 +496,11 @@ async def capture_rtsp_snapshot(
         "-y",
         str(output),
     ]
-    await _emit(emit, "rtsp_snapshot", f"Tentando capturar 1 frame RTSP sem credenciais em {ip}:{port}.", {"ip": ip})
+    await emit_event(emit, "rtsp_snapshot", f"Tentando capturar 1 frame RTSP sem credenciais em {ip}:{port}.", {"ip": ip})
     try:
         result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=8, check=False)
     except subprocess.TimeoutExpired:
-        await _emit(emit, "rtsp_snapshot", f"Timeout ao tentar capturar frame RTSP em {ip}:{port}.", {"ip": ip})
+        await emit_event(emit, "rtsp_snapshot", f"Timeout ao tentar capturar frame RTSP em {ip}:{port}.", {"ip": ip})
         return None
 
     if result.returncode == 0 and output.exists() and output.stat().st_size > 0:
@@ -647,8 +648,7 @@ def summarize(evidence: list[AgentEvidence], hosts_found: int, started_ts: float
 
 
 def save_agent_report(agent_id: str, report: dict[str, Any]) -> None:
-    REPORTS_DIR.mkdir(exist_ok=True)
-    (REPORTS_DIR / f"bad_agent_{agent_id}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    save_json_report(REPORTS_DIR / f"bad_agent_{agent_id}.json", report)
 
 
 def _ports(host: dict[str, Any], ports: set[int]) -> list[PortResult]:
@@ -669,8 +669,3 @@ def _url(ip: str, port: int) -> str:
     return f"{scheme}://{ip}{'' if default else f':{port}'}"
 
 
-async def _emit(emit: Callable[[dict[str, Any]], Any], event: str, message: str, data: dict[str, Any]) -> None:
-    payload = {"ts": utc_now(), "event": event, "message": message, "data": data}
-    maybe = emit(payload)
-    if asyncio.iscoroutine(maybe):
-        await maybe

@@ -7,9 +7,10 @@ import ssl
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+
+from utils import emit_event, save_json_report, utc_now
 
 
 PRIVATE_RANGES = [
@@ -80,10 +81,6 @@ class Finding:
 
 class ScanError(ValueError):
     pass
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def validate_target(target: str, max_hosts: int = 512) -> ipaddress.IPv4Network:
@@ -166,9 +163,9 @@ async def run_scan(
     started = utc_now()
     started_ts = time.perf_counter()
 
-    await _emit(emit, "started", f"Iniciando varredura defensiva em {network}", {"scan_id": scan_id})
+    await emit_event(emit, "started", f"Iniciando varredura defensiva em {network}", {"scan_id": scan_id})
     context = local_context()
-    await _emit(emit, "context", "Contexto local coletado: rotas, DNS e vizinhos ARP.", context)
+    await emit_event(emit, "context", "Contexto local coletado: rotas, DNS e vizinhos ARP.", context)
 
     alive_hosts: list[str] = []
     discovery_sem = asyncio.Semaphore(64)
@@ -181,13 +178,13 @@ async def run_scan(
                 open_probe = await has_any_tcp_port(ip, DISCOVERY_PORTS)
             if latency is not None or open_probe:
                 alive_hosts.append(ip)
-                await _emit(emit, "host_found", f"Host ativo encontrado: {ip}", {"ip": ip, "latency_ms": latency})
+                await emit_event(emit, "host_found", f"Host ativo encontrado: {ip}", {"ip": ip, "latency_ms": latency})
 
-    await _emit(emit, "phase", f"Descobrindo hosts ativos em {len(hosts)} enderecos.", {})
+    await emit_event(emit, "phase", f"Descobrindo hosts ativos em {len(hosts)} enderecos.", {})
     await asyncio.gather(*(discover(ip) for ip in hosts))
     alive_hosts.sort(key=lambda value: int(ipaddress.ip_address(value)))
 
-    await _emit(emit, "phase", f"{len(alive_hosts)} host(s) ativo(s). Checando portas comuns.", {})
+    await emit_event(emit, "phase", f"{len(alive_hosts)} host(s) ativo(s). Checando portas comuns.", {})
 
     neighbors = parse_neighbors()
     results: list[HostResult] = []
@@ -203,7 +200,7 @@ async def run_scan(
             host.open_ports = await scan_ports(ip, ports)
             host.role_hints = role_hints(host)
             results.append(host)
-            await _emit(
+            await emit_event(
                 emit,
                 "host_scanned",
                 f"{ip}: {len(host.open_ports)} porta(s) aberta(s).",
@@ -228,15 +225,8 @@ async def run_scan(
         "manual_checklist": manual_checklist(),
     }
     save_report(scan_id, report)
-    await _emit(emit, "finished", "Scan concluido e relatorio salvo.", report)
+    await emit_event(emit, "finished", "Scan concluido e relatorio salvo.", report)
     return report
-
-
-async def _emit(emit: Callable[[dict[str, Any]], Any], event: str, message: str, data: dict[str, Any]) -> None:
-    payload = {"ts": utc_now(), "event": event, "message": message, "data": data}
-    maybe = emit(payload)
-    if asyncio.iscoroutine(maybe):
-        await maybe
 
 
 def _ports_for_profile(profile: str) -> list[int]:
@@ -515,8 +505,7 @@ def manual_checklist() -> list[dict[str, str]]:
 
 
 def save_report(scan_id: str, report: dict[str, Any]) -> None:
-    REPORTS_DIR.mkdir(exist_ok=True)
-    (REPORTS_DIR / f"{scan_id}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    save_json_report(REPORTS_DIR / f"{scan_id}.json", report)
     (REPORTS_DIR / f"{scan_id}.md").write_text(markdown_report(report), encoding="utf-8")
 
 

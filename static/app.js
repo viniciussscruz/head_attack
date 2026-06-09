@@ -1,84 +1,348 @@
-const scanForm = document.querySelector("#scanForm");
-const scheduleForm = document.querySelector("#scheduleForm");
-const targetInput = document.querySelector("#target");
-const profileInput = document.querySelector("#profile");
-const intervalInput = document.querySelector("#interval");
-const runNowInput = document.querySelector("#runNow");
-const consoleEl = document.querySelector("#console");
-const activeScan = document.querySelector("#activeScan");
-const scanStatus = document.querySelector("#scanStatus");
-const serviceStatus = document.querySelector("#serviceStatus");
-const reportsEl = document.querySelector("#reports");
-const schedulesEl = document.querySelector("#schedules");
-const refreshReports = document.querySelector("#refreshReports");
-const reportSubtitle = document.querySelector("#reportSubtitle");
-const reportStatus = document.querySelector("#reportStatus");
-const reportContent = document.querySelector("#reportContent");
+/* ── DOM helpers (hoisted function declarations usable from line 1) ───────── */
+
+function qs(selector) {
+  const el = document.querySelector(selector);
+  if (!el) throw new Error(`Missing DOM element: ${selector}`);
+  return el;
+}
+
+function openEventStream(url, onMessage, onError) {
+  const source = new EventSource(url);
+  source.onmessage = (event) => onMessage(JSON.parse(event.data));
+  source.onerror = () => { onError(); source.close(); };
+  return source;
+}
+
+/* ── i18n ───────────────────────────────────────────────── */
+
+const TRANSLATIONS = {
+  pt: {
+    eyebrow: "Auditoria defensiva de rede",
+    tabDashboard: "Dashboard", tabBadAgent: "Bad Agent", tabPerformance: "Performance", tabWebsite: "Website Security",
+    newTest: "Novo teste", authorizedNetwork: "Rede autorizada", profile: "Perfil",
+    profileQuick: "Rápido e leve", profileFull: "Completo controlado",
+    btnRun: "Rodar agora", btnRefresh: "Atualizar",
+    schedule: "Agendamento", interval: "Intervalo",
+    int30m: "30 minutos", int1h: "1 hora", int6h: "6 horas", int1d: "1 dia",
+    runFirstNow: "Executar a primeira checagem agora", btnCreateSchedule: "Criar agendamento",
+    liveTitle: "Execução em tempo real", noScanRunning: "Nenhum teste em execução.",
+    labelHosts: "Hosts", labelPorts: "Portas", labelCritHigh: "Críticos/Altos", labelStatus: "Status",
+    savedReports: "Relatórios salvos", savedReportsHint: "Abra para ver riscos, acertos e links de correção.",
+    visualReport: "Relatório visual", runOrOpenReport: "Execute um teste ou abra um relatório salvo.",
+    noReportSelected: "Nenhum relatório selecionado ainda.",
+    aiEndpoint: "Endpoint da IA", aiModel: "Modelo", aiApiKey: "API key da IA",
+    apiKeyPlaceholder: "Opcional — não é salva", btnLoadModels: "Carregar modelos disponíveis",
+    enterKeyHint: "Informe a API key para carregar modelos.",
+    safeEvidencesHint: "Evidências seguras — sem senhas, resets ou exploits.",
+    testAdminPanels: "Painéis admin HTTP/HTTPS", testInsecureServices: "Serviços inseguros",
+    testCameraRtsp: "Câmeras / DVR RTSP", testSegmentation: "Segmentação fraca",
+    testBruteforce: "Alvo para força bruta", testResetExposure: "Reset / reboot expostos",
+    testUpnp: "UPnP / SSDP ativo",
+    captureRtsp: "Capturar 1 frame RTSP sem credenciais quando o fluxo estiver aberto",
+    btnRunBadAgent: "Rodar test_bad_agent",
+    badAgentLiveTitle: "Execução adversária controlada", noAgentRunning: "Nenhum agente em execução.",
+    labelEvidence: "Evidências", badAgentReportTitle: "Resultado do test_bad_agent",
+    aiOnlyExplains: "IA usada apenas para explicar achados; testes continuam controlados.",
+    noResultYet: "Nenhum resultado ainda.",
+    networkInterface: "Interface de rede", interfacePlaceholder: "Auto, ex: wlan0",
+    broadcastSample: "Amostra de broadcast",
+    s10: "10 segundos", s15: "15 segundos", s30: "30 segundos", s60: "60 segundos",
+    runSpeedtest: "Rodar speed test de internet", btnAnalyze: "Analisar performance",
+    perfLiveTitle: "Execução da análise", noAnalysisRunning: "Nenhuma análise em execução.",
+    labelBroadcast: "Broadcast/s", labelTalkers: "Talkers", labelDownload: "Download",
+    perfReportTitle: "Network Performance Report", perfReportHint: "Dados locais, amostra passiva e speed test.",
+    authorizedUrl: "URL autorizada", urlPlaceholder: "https://example.com",
+    confirmAuthorized: "Confirmo que tenho autorização para testar este site",
+    checkSensitivePaths: "Checar arquivos sensíveis comuns com requisições leves",
+    btnTestWebsite: "Testar website", webLiveTitle: "Execução da análise web",
+    noWebTestRunning: "Nenhum teste em execução.", labelFindings: "Achados", labelHttpStatus: "Status HTTP",
+    webReportTitle: "Website Security Report",
+    webReportHint: "Headers, TLS, cookies, formulários, CORS e exposição de arquivos.",
+    statusWaiting: "aguardando", statusEmpty: "vazio", statusRunning: "rodando",
+    statusDone: "concluído", statusError: "erro", statusFailed: "falhou",
+    awaitingBadAgent: "Aguardando resultado do test_bad_agent.",
+    awaitingPerformance: "Aguardando resultado da análise.",
+    awaitingWebsite: "Aguardando resultado da análise web.",
+    noSchedules: "Nenhum agendamento ativo.", scheduleEvery: "a cada",
+    lastScan: "Último scan", next: "Próximo", btnRemove: "Remover",
+    loadReportsFailed: "Não foi possível carregar relatórios.",
+    noReportsYet: "Nenhum relatório gerado ainda.",
+    btnViewPanel: "Ver painel", critHighLabel: "críticos/altos",
+    openReportFailed: "Não foi possível abrir este relatório.",
+    streamClosed: "Conexão de eventos encerrada.",
+  },
+  en: {
+    eyebrow: "Defensive network audit",
+    tabDashboard: "Dashboard", tabBadAgent: "Bad Agent", tabPerformance: "Performance", tabWebsite: "Website Security",
+    newTest: "New test", authorizedNetwork: "Authorized network", profile: "Profile",
+    profileQuick: "Quick and light", profileFull: "Full controlled",
+    btnRun: "Run now", btnRefresh: "Refresh",
+    schedule: "Schedule", interval: "Interval",
+    int30m: "30 minutes", int1h: "1 hour", int6h: "6 hours", int1d: "1 day",
+    runFirstNow: "Run first check now", btnCreateSchedule: "Create schedule",
+    liveTitle: "Real-time execution", noScanRunning: "No test running.",
+    labelHosts: "Hosts", labelPorts: "Ports", labelCritHigh: "Critical/High", labelStatus: "Status",
+    savedReports: "Saved reports", savedReportsHint: "Open to see risks, findings and remediation links.",
+    visualReport: "Visual report", runOrOpenReport: "Run a test or open a saved report.",
+    noReportSelected: "No report selected yet.",
+    aiEndpoint: "AI endpoint", aiModel: "Model", aiApiKey: "AI API key",
+    apiKeyPlaceholder: "Optional — not saved", btnLoadModels: "Load available models",
+    enterKeyHint: "Enter API key to load models.",
+    safeEvidencesHint: "Safe evidence — no passwords, resets or exploits.",
+    testAdminPanels: "HTTP/HTTPS admin panels", testInsecureServices: "Insecure services",
+    testCameraRtsp: "Cameras / DVR RTSP", testSegmentation: "Weak segmentation",
+    testBruteforce: "Brute-force target", testResetExposure: "Reset / reboot exposed",
+    testUpnp: "UPnP / SSDP active",
+    captureRtsp: "Capture 1 RTSP frame without credentials when stream is open",
+    btnRunBadAgent: "Run test_bad_agent",
+    badAgentLiveTitle: "Controlled adversarial execution", noAgentRunning: "No agent running.",
+    labelEvidence: "Evidence", badAgentReportTitle: "test_bad_agent result",
+    aiOnlyExplains: "AI used only to explain findings; tests remain controlled.",
+    noResultYet: "No results yet.",
+    networkInterface: "Network interface", interfacePlaceholder: "Auto, e.g. wlan0",
+    broadcastSample: "Broadcast sample",
+    s10: "10 seconds", s15: "15 seconds", s30: "30 seconds", s60: "60 seconds",
+    runSpeedtest: "Run internet speed test", btnAnalyze: "Analyze performance",
+    perfLiveTitle: "Analysis execution", noAnalysisRunning: "No analysis running.",
+    labelBroadcast: "Broadcast/s", labelTalkers: "Talkers", labelDownload: "Download",
+    perfReportTitle: "Network Performance Report", perfReportHint: "Local data, passive sample and speed test.",
+    authorizedUrl: "Authorized URL", urlPlaceholder: "https://example.com",
+    confirmAuthorized: "I confirm I have authorization to test this website",
+    checkSensitivePaths: "Check common sensitive files with light requests",
+    btnTestWebsite: "Test website", webLiveTitle: "Web analysis execution",
+    noWebTestRunning: "No test running.", labelFindings: "Findings", labelHttpStatus: "HTTP status",
+    webReportTitle: "Website Security Report",
+    webReportHint: "Headers, TLS, cookies, forms, CORS and file exposure.",
+    statusWaiting: "waiting", statusEmpty: "empty", statusRunning: "running",
+    statusDone: "completed", statusError: "error", statusFailed: "failed",
+    awaitingBadAgent: "Awaiting test_bad_agent result.",
+    awaitingPerformance: "Awaiting analysis result.",
+    awaitingWebsite: "Awaiting web analysis result.",
+    noSchedules: "No active schedules.", scheduleEvery: "every",
+    lastScan: "Last scan", next: "Next", btnRemove: "Remove",
+    loadReportsFailed: "Could not load reports.",
+    noReportsYet: "No reports generated yet.",
+    btnViewPanel: "View panel", critHighLabel: "critical/high",
+    openReportFailed: "Could not open this report.",
+    streamClosed: "Event stream closed.",
+  },
+  es: {
+    eyebrow: "Auditoría defensiva de red",
+    tabDashboard: "Dashboard", tabBadAgent: "Bad Agent", tabPerformance: "Rendimiento", tabWebsite: "Seguridad Web",
+    newTest: "Nueva prueba", authorizedNetwork: "Red autorizada", profile: "Perfil",
+    profileQuick: "Rápido y ligero", profileFull: "Completo controlado",
+    btnRun: "Ejecutar ahora", btnRefresh: "Actualizar",
+    schedule: "Programación", interval: "Intervalo",
+    int30m: "30 minutos", int1h: "1 hora", int6h: "6 horas", int1d: "1 día",
+    runFirstNow: "Ejecutar primera comprobación ahora", btnCreateSchedule: "Crear programación",
+    liveTitle: "Ejecución en tiempo real", noScanRunning: "Ninguna prueba en ejecución.",
+    labelHosts: "Hosts", labelPorts: "Puertos", labelCritHigh: "Críticos/Altos", labelStatus: "Estado",
+    savedReports: "Informes guardados", savedReportsHint: "Abre para ver riesgos, hallazgos y enlaces de corrección.",
+    visualReport: "Informe visual", runOrOpenReport: "Ejecuta una prueba o abre un informe guardado.",
+    noReportSelected: "Ningún informe seleccionado aún.",
+    aiEndpoint: "Endpoint de IA", aiModel: "Modelo", aiApiKey: "Clave API de IA",
+    apiKeyPlaceholder: "Opcional — no se guarda", btnLoadModels: "Cargar modelos disponibles",
+    enterKeyHint: "Introduce la clave API para cargar modelos.",
+    safeEvidencesHint: "Evidencias seguras — sin contraseñas, resets ni exploits.",
+    testAdminPanels: "Paneles admin HTTP/HTTPS", testInsecureServices: "Servicios inseguros",
+    testCameraRtsp: "Cámaras / DVR RTSP", testSegmentation: "Segmentación débil",
+    testBruteforce: "Objetivo de fuerza bruta", testResetExposure: "Reset / reboot expuestos",
+    testUpnp: "UPnP / SSDP activo",
+    captureRtsp: "Capturar 1 fotograma RTSP sin credenciales cuando el flujo esté abierto",
+    btnRunBadAgent: "Ejecutar test_bad_agent",
+    badAgentLiveTitle: "Ejecución adversarial controlada", noAgentRunning: "Ningún agente en ejecución.",
+    labelEvidence: "Evidencias", badAgentReportTitle: "Resultado de test_bad_agent",
+    aiOnlyExplains: "IA usada solo para explicar hallazgos; las pruebas siguen controladas.",
+    noResultYet: "Sin resultados aún.",
+    networkInterface: "Interfaz de red", interfacePlaceholder: "Auto, ej. wlan0",
+    broadcastSample: "Muestra de broadcast",
+    s10: "10 segundos", s15: "15 segundos", s30: "30 segundos", s60: "60 segundos",
+    runSpeedtest: "Ejecutar test de velocidad", btnAnalyze: "Analizar rendimiento",
+    perfLiveTitle: "Ejecución del análisis", noAnalysisRunning: "Ningún análisis en ejecución.",
+    labelBroadcast: "Broadcast/s", labelTalkers: "Talkers", labelDownload: "Descarga",
+    perfReportTitle: "Network Performance Report", perfReportHint: "Datos locales, muestra pasiva y test de velocidad.",
+    authorizedUrl: "URL autorizada", urlPlaceholder: "https://example.com",
+    confirmAuthorized: "Confirmo que tengo autorización para probar este sitio web",
+    checkSensitivePaths: "Verificar archivos sensibles comunes con solicitudes ligeras",
+    btnTestWebsite: "Probar sitio web", webLiveTitle: "Ejecución del análisis web",
+    noWebTestRunning: "Ninguna prueba en ejecución.", labelFindings: "Hallazgos", labelHttpStatus: "Estado HTTP",
+    webReportTitle: "Website Security Report",
+    webReportHint: "Headers, TLS, cookies, formularios, CORS y exposición de archivos.",
+    statusWaiting: "esperando", statusEmpty: "vacío", statusRunning: "ejecutando",
+    statusDone: "completado", statusError: "error", statusFailed: "fallido",
+    awaitingBadAgent: "Esperando resultado de test_bad_agent.",
+    awaitingPerformance: "Esperando resultado del análisis.",
+    awaitingWebsite: "Esperando resultado del análisis web.",
+    noSchedules: "Ninguna programación activa.", scheduleEvery: "cada",
+    lastScan: "Último escaneo", next: "Próximo", btnRemove: "Eliminar",
+    loadReportsFailed: "No se pudieron cargar los informes.",
+    noReportsYet: "Ningún informe generado aún.",
+    btnViewPanel: "Ver panel", critHighLabel: "críticos/altos",
+    openReportFailed: "No se pudo abrir este informe.",
+    streamClosed: "Conexión de eventos cerrada.",
+  },
+  fr: {
+    eyebrow: "Audit réseau défensif",
+    tabDashboard: "Dashboard", tabBadAgent: "Bad Agent", tabPerformance: "Performance", tabWebsite: "Sécurité Web",
+    newTest: "Nouveau test", authorizedNetwork: "Réseau autorisé", profile: "Profil",
+    profileQuick: "Rapide et léger", profileFull: "Complet contrôlé",
+    btnRun: "Lancer maintenant", btnRefresh: "Actualiser",
+    schedule: "Planification", interval: "Intervalle",
+    int30m: "30 minutes", int1h: "1 heure", int6h: "6 heures", int1d: "1 jour",
+    runFirstNow: "Effectuer la première vérification maintenant", btnCreateSchedule: "Créer une planification",
+    liveTitle: "Exécution en temps réel", noScanRunning: "Aucun test en cours.",
+    labelHosts: "Hôtes", labelPorts: "Ports", labelCritHigh: "Critiques/Hauts", labelStatus: "Statut",
+    savedReports: "Rapports sauvegardés", savedReportsHint: "Ouvrir pour voir les risques et liens de correction.",
+    visualReport: "Rapport visuel", runOrOpenReport: "Lancez un test ou ouvrez un rapport sauvegardé.",
+    noReportSelected: "Aucun rapport sélectionné.",
+    aiEndpoint: "Endpoint IA", aiModel: "Modèle", aiApiKey: "Clé API IA",
+    apiKeyPlaceholder: "Optionnel — non sauvegardé", btnLoadModels: "Charger les modèles disponibles",
+    enterKeyHint: "Entrez la clé API pour charger les modèles.",
+    safeEvidencesHint: "Preuves sécurisées — sans mots de passe, resets ni exploits.",
+    testAdminPanels: "Panneaux admin HTTP/HTTPS", testInsecureServices: "Services non sécurisés",
+    testCameraRtsp: "Caméras / DVR RTSP", testSegmentation: "Segmentation faible",
+    testBruteforce: "Cible de force brute", testResetExposure: "Reset / reboot exposés",
+    testUpnp: "UPnP / SSDP actif",
+    captureRtsp: "Capturer 1 image RTSP sans identifiants quand le flux est ouvert",
+    btnRunBadAgent: "Lancer test_bad_agent",
+    badAgentLiveTitle: "Exécution adversariale contrôlée", noAgentRunning: "Aucun agent en cours.",
+    labelEvidence: "Preuves", badAgentReportTitle: "Résultat de test_bad_agent",
+    aiOnlyExplains: "IA utilisée uniquement pour expliquer les résultats ; tests restent contrôlés.",
+    noResultYet: "Aucun résultat pour l'instant.",
+    networkInterface: "Interface réseau", interfacePlaceholder: "Auto, ex. wlan0",
+    broadcastSample: "Échantillon broadcast",
+    s10: "10 secondes", s15: "15 secondes", s30: "30 secondes", s60: "60 secondes",
+    runSpeedtest: "Lancer le test de vitesse", btnAnalyze: "Analyser les performances",
+    perfLiveTitle: "Exécution de l'analyse", noAnalysisRunning: "Aucune analyse en cours.",
+    labelBroadcast: "Broadcast/s", labelTalkers: "Talkers", labelDownload: "Téléchargement",
+    perfReportTitle: "Network Performance Report", perfReportHint: "Données locales, échantillon passif et test de vitesse.",
+    authorizedUrl: "URL autorisée", urlPlaceholder: "https://example.com",
+    confirmAuthorized: "Je confirme avoir l'autorisation de tester ce site",
+    checkSensitivePaths: "Vérifier les fichiers sensibles courants avec des requêtes légères",
+    btnTestWebsite: "Tester le site web", webLiveTitle: "Exécution de l'analyse web",
+    noWebTestRunning: "Aucun test en cours.", labelFindings: "Résultats", labelHttpStatus: "Statut HTTP",
+    webReportTitle: "Website Security Report",
+    webReportHint: "Headers, TLS, cookies, formulaires, CORS et exposition de fichiers.",
+    statusWaiting: "en attente", statusEmpty: "vide", statusRunning: "en cours",
+    statusDone: "terminé", statusError: "erreur", statusFailed: "échoué",
+    awaitingBadAgent: "En attente du résultat de test_bad_agent.",
+    awaitingPerformance: "En attente du résultat de l'analyse.",
+    awaitingWebsite: "En attente du résultat de l'analyse web.",
+    noSchedules: "Aucune planification active.", scheduleEvery: "toutes les",
+    lastScan: "Dernier scan", next: "Prochain", btnRemove: "Supprimer",
+    loadReportsFailed: "Impossible de charger les rapports.",
+    noReportsYet: "Aucun rapport généré pour l'instant.",
+    btnViewPanel: "Voir le panneau", critHighLabel: "critiques/hauts",
+    openReportFailed: "Impossible d'ouvrir ce rapport.",
+    streamClosed: "Flux d'événements fermé.",
+  },
+};
+
+let currentLang = localStorage.getItem("lang") || "pt";
+
+function t(key) {
+  return (TRANSLATIONS[currentLang] || TRANSLATIONS.pt)[key] || key;
+}
+
+function setLanguage(lang) {
+  if (!TRANSLATIONS[lang]) return;
+  currentLang = lang;
+  localStorage.setItem("lang", lang);
+  document.documentElement.lang = lang === "pt" ? "pt-BR" : lang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const val = t(el.dataset.i18n);
+    if (val) el.textContent = val;
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    const val = t(el.dataset.i18nPlaceholder);
+    if (val) el.placeholder = val;
+  });
+  document.querySelectorAll(".lang-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.lang === lang);
+  });
+}
+
+const scanForm = qs("#scanForm");
+const scheduleForm = qs("#scheduleForm");
+const targetInput = qs("#target");
+const profileInput = qs("#profile");
+const intervalInput = qs("#interval");
+const runNowInput = qs("#runNow");
+const consoleEl = qs("#console");
+const activeScan = qs("#activeScan");
+const scanStatus = qs("#scanStatus");
+const serviceStatus = qs("#serviceStatus");
+const reportsEl = qs("#reports");
+const schedulesEl = qs("#schedules");
+const refreshReports = qs("#refreshReports");
+const reportSubtitle = qs("#reportSubtitle");
+const reportStatus = qs("#reportStatus");
+const reportContent = qs("#reportContent");
 const tabButtons = document.querySelectorAll("[data-tab]");
-const dashboardTab = document.querySelector("#dashboardTab");
-const badAgentTab = document.querySelector("#badAgentTab");
-const performanceTab = document.querySelector("#performanceTab");
-const websiteSecurityTab = document.querySelector("#websiteSecurityTab");
-const badAgentForm = document.querySelector("#badAgentForm");
-const badAgentTarget = document.querySelector("#badAgentTarget");
-const aiEndpoint = document.querySelector("#aiEndpoint");
-const aiModel = document.querySelector("#aiModel");
-const aiApiKey = document.querySelector("#aiApiKey");
-const loadAiModels = document.querySelector("#loadAiModels");
-const aiModelStatus = document.querySelector("#aiModelStatus");
-const captureRtspFrame = document.querySelector("#captureRtspFrame");
-const badAgentActive = document.querySelector("#badAgentActive");
-const badAgentStatus = document.querySelector("#badAgentStatus");
-const badAgentConsole = document.querySelector("#badAgentConsole");
-const badHostsCount = document.querySelector("#badHostsCount");
-const badEvidenceCount = document.querySelector("#badEvidenceCount");
-const badHighCount = document.querySelector("#badHighCount");
-const badOverallStatus = document.querySelector("#badOverallStatus");
-const badAgentSubtitle = document.querySelector("#badAgentSubtitle");
-const badAgentReportStatus = document.querySelector("#badAgentReportStatus");
-const badAgentReport = document.querySelector("#badAgentReport");
-const performanceForm = document.querySelector("#performanceForm");
-const perfInterface = document.querySelector("#perfInterface");
-const perfSampleSeconds = document.querySelector("#perfSampleSeconds");
-const runSpeedtest = document.querySelector("#runSpeedtest");
-const perfAiEndpoint = document.querySelector("#perfAiEndpoint");
-const perfAiModel = document.querySelector("#perfAiModel");
-const perfAiApiKey = document.querySelector("#perfAiApiKey");
-const loadPerfAiModels = document.querySelector("#loadPerfAiModels");
-const perfAiModelStatus = document.querySelector("#perfAiModelStatus");
-const performanceActive = document.querySelector("#performanceActive");
-const performanceStatus = document.querySelector("#performanceStatus");
-const performanceConsole = document.querySelector("#performanceConsole");
-const perfBroadcastPps = document.querySelector("#perfBroadcastPps");
-const perfTalkers = document.querySelector("#perfTalkers");
-const perfDownload = document.querySelector("#perfDownload");
-const perfOverallStatus = document.querySelector("#perfOverallStatus");
-const performanceSubtitle = document.querySelector("#performanceSubtitle");
-const performanceReportStatus = document.querySelector("#performanceReportStatus");
-const performanceReport = document.querySelector("#performanceReport");
-const websiteSecurityForm = document.querySelector("#websiteSecurityForm");
-const websiteUrl = document.querySelector("#websiteUrl");
-const websiteAuthorized = document.querySelector("#websiteAuthorized");
-const websiteSensitivePaths = document.querySelector("#websiteSensitivePaths");
-const webAiEndpoint = document.querySelector("#webAiEndpoint");
-const webAiModel = document.querySelector("#webAiModel");
-const webAiApiKey = document.querySelector("#webAiApiKey");
-const loadWebAiModels = document.querySelector("#loadWebAiModels");
-const webAiModelStatus = document.querySelector("#webAiModelStatus");
-const websiteActive = document.querySelector("#websiteActive");
-const websiteStatus = document.querySelector("#websiteStatus");
-const websiteConsole = document.querySelector("#websiteConsole");
-const webFindingsCount = document.querySelector("#webFindingsCount");
-const webHighCount = document.querySelector("#webHighCount");
-const webHttpStatus = document.querySelector("#webHttpStatus");
-const webOverallStatus = document.querySelector("#webOverallStatus");
-const websiteSubtitle = document.querySelector("#websiteSubtitle");
-const websiteReportStatus = document.querySelector("#websiteReportStatus");
-const websiteReport = document.querySelector("#websiteReport");
-const hostsCount = document.querySelector("#hostsCount");
-const portsCount = document.querySelector("#portsCount");
-const highCount = document.querySelector("#highCount");
-const overallStatus = document.querySelector("#overallStatus");
+const dashboardTab = qs("#dashboardTab");
+const badAgentTab = qs("#badAgentTab");
+const performanceTab = qs("#performanceTab");
+const websiteSecurityTab = qs("#websiteSecurityTab");
+const badAgentForm = qs("#badAgentForm");
+const badAgentTarget = qs("#badAgentTarget");
+const aiEndpoint = qs("#aiEndpoint");
+const aiModel = qs("#aiModel");
+const aiApiKey = qs("#aiApiKey");
+const loadAiModels = qs("#loadAiModels");
+const aiModelStatus = qs("#aiModelStatus");
+const captureRtspFrame = qs("#captureRtspFrame");
+const badAgentActive = qs("#badAgentActive");
+const badAgentStatus = qs("#badAgentStatus");
+const badAgentConsole = qs("#badAgentConsole");
+const badHostsCount = qs("#badHostsCount");
+const badEvidenceCount = qs("#badEvidenceCount");
+const badHighCount = qs("#badHighCount");
+const badOverallStatus = qs("#badOverallStatus");
+const badAgentSubtitle = qs("#badAgentSubtitle");
+const badAgentReportStatus = qs("#badAgentReportStatus");
+const badAgentReport = qs("#badAgentReport");
+const performanceForm = qs("#performanceForm");
+const perfInterface = qs("#perfInterface");
+const perfSampleSeconds = qs("#perfSampleSeconds");
+const runSpeedtest = qs("#runSpeedtest");
+const perfAiEndpoint = qs("#perfAiEndpoint");
+const perfAiModel = qs("#perfAiModel");
+const perfAiApiKey = qs("#perfAiApiKey");
+const loadPerfAiModels = qs("#loadPerfAiModels");
+const perfAiModelStatus = qs("#perfAiModelStatus");
+const performanceActive = qs("#performanceActive");
+const performanceStatus = qs("#performanceStatus");
+const performanceConsole = qs("#performanceConsole");
+const perfBroadcastPps = qs("#perfBroadcastPps");
+const perfTalkers = qs("#perfTalkers");
+const perfDownload = qs("#perfDownload");
+const perfOverallStatus = qs("#perfOverallStatus");
+const performanceSubtitle = qs("#performanceSubtitle");
+const performanceReportStatus = qs("#performanceReportStatus");
+const performanceReport = qs("#performanceReport");
+const websiteSecurityForm = qs("#websiteSecurityForm");
+const websiteUrl = qs("#websiteUrl");
+const websiteAuthorized = qs("#websiteAuthorized");
+const websiteSensitivePaths = qs("#websiteSensitivePaths");
+const webAiEndpoint = qs("#webAiEndpoint");
+const webAiModel = qs("#webAiModel");
+const webAiApiKey = qs("#webAiApiKey");
+const loadWebAiModels = qs("#loadWebAiModels");
+const webAiModelStatus = qs("#webAiModelStatus");
+const websiteActive = qs("#websiteActive");
+const websiteStatus = qs("#websiteStatus");
+const websiteConsole = qs("#websiteConsole");
+const webFindingsCount = qs("#webFindingsCount");
+const webHighCount = qs("#webHighCount");
+const webHttpStatus = qs("#webHttpStatus");
+const webOverallStatus = qs("#webOverallStatus");
+const websiteSubtitle = qs("#websiteSubtitle");
+const websiteReportStatus = qs("#websiteReportStatus");
+const websiteReport = qs("#websiteReport");
+const hostsCount = qs("#hostsCount");
+const portsCount = qs("#portsCount");
+const highCount = qs("#highCount");
+const overallStatus = qs("#overallStatus");
 
 let activeSource = null;
 let activeBadSource = null;
@@ -124,7 +388,7 @@ refreshReports.addEventListener("click", () => { loadReports(); loadSchedules();
 
 async function startScan() {
   resetLive();
-  setStatus("rodando", "warn");
+  setStatus(t("statusRunning"), "warn");
 
   const response = await fetch("/api/scans", {
     method: "POST",
@@ -134,7 +398,7 @@ async function startScan() {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
-    setStatus("erro", "bad");
+    setStatus(t("statusError"), "bad");
     addLine("erro", error.detail || "Não foi possível iniciar o scan.");
     return;
   }
@@ -146,9 +410,11 @@ async function startScan() {
 
 function streamScan(scanId) {
   if (activeSource) activeSource.close();
-  activeSource = new EventSource(`/api/scans/${scanId}/events`);
-  activeSource.onmessage = (event) => handleEvent(JSON.parse(event.data), scanId);
-  activeSource.onerror = () => { addLine("stream", "Conexão de eventos encerrada."); activeSource.close(); };
+  activeSource = openEventStream(
+    `/api/scans/${scanId}/events`,
+    (payload) => handleEvent(payload, scanId),
+    () => addLine("stream", t("streamClosed"))
+  );
 }
 
 function handleEvent(payload, scanId) {
@@ -165,20 +431,20 @@ function handleEvent(payload, scanId) {
   if (event === "finished") {
     const report = payload.data;
     applySummary(report.summary || {});
-    setStatus("concluído", statusClass(report.summary?.overall_status));
+    setStatus(t("statusDone"), statusClass(report.summary?.overall_status));
     renderReport(report);
     addLine("relatorio", "Relatório visual atualizado.");
     loadReports();
   }
 
-  if (event === "failed") setStatus("falhou", "bad");
+  if (event === "failed") setStatus(t("statusFailed"), "bad");
 }
 
 /* ── Bad Agent ──────────────────────────────────────────── */
 
 async function startBadAgent() {
   resetBadAgent();
-  setBadStatus("rodando", "warn");
+  setBadStatus(t("statusRunning"), "warn");
 
   const tests = Array.from(document.querySelectorAll('input[name="badTest"]:checked')).map((item) => item.value);
   const response = await fetch("/api/bad-agent", {
@@ -196,7 +462,7 @@ async function startBadAgent() {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
-    setBadStatus("erro", "bad");
+    setBadStatus(t("statusError"), "bad");
     addBadLine("erro", error.detail || "Não foi possível iniciar o test_bad_agent.");
     return;
   }
@@ -208,9 +474,11 @@ async function startBadAgent() {
 
 function streamBadAgent(agentId) {
   if (activeBadSource) activeBadSource.close();
-  activeBadSource = new EventSource(`/api/bad-agent/${agentId}/events`);
-  activeBadSource.onmessage = (event) => handleBadAgentEvent(JSON.parse(event.data));
-  activeBadSource.onerror = () => { addBadLine("stream", "Conexão de eventos encerrada."); activeBadSource.close(); };
+  activeBadSource = openEventStream(
+    `/api/bad-agent/${agentId}/events`,
+    handleBadAgentEvent,
+    () => addBadLine("stream", t("streamClosed"))
+  );
 }
 
 function handleBadAgentEvent(payload) {
@@ -221,17 +489,17 @@ function handleBadAgentEvent(payload) {
 
   if (event === "finished") {
     renderBadAgentReport(payload.data);
-    setBadStatus("concluído", statusClass(payload.data.summary?.overall_status));
+    setBadStatus(t("statusDone"), statusClass(payload.data.summary?.overall_status));
   }
 
-  if (event === "failed") setBadStatus("falhou", "bad");
+  if (event === "failed") setBadStatus(t("statusFailed"), "bad");
 }
 
 /* ── Performance ────────────────────────────────────────── */
 
 async function startPerformanceAnalysis() {
   resetPerformance();
-  setPerformanceStatus("rodando", "warn");
+  setPerformanceStatus(t("statusRunning"), "warn");
 
   const response = await fetch("/api/performance", {
     method: "POST",
@@ -248,7 +516,7 @@ async function startPerformanceAnalysis() {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
-    setPerformanceStatus("erro", "bad");
+    setPerformanceStatus(t("statusError"), "bad");
     addPerformanceLine("erro", error.detail || "Não foi possível iniciar a análise.");
     return;
   }
@@ -260,9 +528,11 @@ async function startPerformanceAnalysis() {
 
 function streamPerformance(analysisId) {
   if (activePerformanceSource) activePerformanceSource.close();
-  activePerformanceSource = new EventSource(`/api/performance/${analysisId}/events`);
-  activePerformanceSource.onmessage = (event) => handlePerformanceEvent(JSON.parse(event.data));
-  activePerformanceSource.onerror = () => { addPerformanceLine("stream", "Conexão de eventos encerrada."); activePerformanceSource.close(); };
+  activePerformanceSource = openEventStream(
+    `/api/performance/${analysisId}/events`,
+    handlePerformanceEvent,
+    () => addPerformanceLine("stream", t("streamClosed"))
+  );
 }
 
 function handlePerformanceEvent(payload) {
@@ -280,17 +550,17 @@ function handlePerformanceEvent(payload) {
 
   if (event === "finished") {
     renderPerformanceReport(payload.data);
-    setPerformanceStatus("concluído", statusClass(payload.data.summary?.overall_status));
+    setPerformanceStatus(t("statusDone"), statusClass(payload.data.summary?.overall_status));
   }
 
-  if (event === "failed") setPerformanceStatus("falhou", "bad");
+  if (event === "failed") setPerformanceStatus(t("statusFailed"), "bad");
 }
 
 /* ── Website Security ──────────────────────────────────── */
 
 async function startWebsiteSecurity() {
   resetWebsiteSecurity();
-  setWebsiteStatus("rodando", "warn");
+  setWebsiteStatus(t("statusRunning"), "warn");
 
   const response = await fetch("/api/website-security", {
     method: "POST",
@@ -307,7 +577,7 @@ async function startWebsiteSecurity() {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
-    setWebsiteStatus("erro", "bad");
+    setWebsiteStatus(t("statusError"), "bad");
     addWebsiteLine("erro", error.detail || "Não foi possível iniciar o teste de website.");
     return;
   }
@@ -319,9 +589,11 @@ async function startWebsiteSecurity() {
 
 function streamWebsiteSecurity(scanId) {
   if (activeWebsiteSource) activeWebsiteSource.close();
-  activeWebsiteSource = new EventSource(`/api/website-security/${scanId}/events`);
-  activeWebsiteSource.onmessage = (event) => handleWebsiteEvent(JSON.parse(event.data));
-  activeWebsiteSource.onerror = () => { addWebsiteLine("stream", "Conexão de eventos encerrada."); activeWebsiteSource.close(); };
+  activeWebsiteSource = openEventStream(
+    `/api/website-security/${scanId}/events`,
+    handleWebsiteEvent,
+    () => addWebsiteLine("stream", t("streamClosed"))
+  );
 }
 
 function handleWebsiteEvent(payload) {
@@ -334,10 +606,10 @@ function handleWebsiteEvent(payload) {
 
   if (event === "finished") {
     renderWebsiteReport(payload.data);
-    setWebsiteStatus("concluído", statusClass(payload.data.summary?.overall_status));
+    setWebsiteStatus(t("statusDone"), statusClass(payload.data.summary?.overall_status));
   }
 
-  if (event === "failed") setWebsiteStatus("falhou", "bad");
+  if (event === "failed") setWebsiteStatus(t("statusFailed"), "bad");
 }
 
 /* ── AI models ──────────────────────────────────────────── */
@@ -404,7 +676,7 @@ async function loadSchedules() {
   schedulesEl.innerHTML = "";
 
   if (!schedules.length) {
-    schedulesEl.innerHTML = '<div class="item"><p>Nenhum agendamento ativo.</p></div>';
+    schedulesEl.innerHTML = `<div class="item"><p>${t("noSchedules")}</p></div>`;
     return;
   }
 
@@ -412,10 +684,10 @@ async function loadSchedules() {
     const item = document.createElement("div");
     item.className = "item";
     item.innerHTML = `
-      <strong>${escapeHtml(schedule.target)} a cada ${schedule.interval_minutes} min</strong>
-      <p>Último scan: ${schedule.last_scan_id || "—"}<br />Próximo: ${formatDate(schedule.next_run_at)}</p>
+      <strong>${escapeHtml(schedule.target)} ${t("scheduleEvery")} ${schedule.interval_minutes} min</strong>
+      <p>${t("lastScan")}: ${schedule.last_scan_id || "—"}<br />${t("next")}: ${formatDate(schedule.next_run_at)}</p>
       <div class="item-actions">
-        <button class="secondary" data-remove="${schedule.id}" style="width:auto;padding:5px 10px;font-size:12px">Remover</button>
+        <button class="secondary" data-remove="${schedule.id}" style="width:auto;padding:5px 10px;font-size:12px">${t("btnRemove")}</button>
       </div>
     `;
     schedulesEl.appendChild(item);
@@ -434,7 +706,7 @@ async function loadSchedules() {
 async function loadReports() {
   const response = await fetch("/api/reports");
   if (!response.ok) {
-    reportsEl.innerHTML = '<div class="item"><p>Não foi possível carregar relatórios.</p></div>';
+    reportsEl.innerHTML = `<div class="item"><p>${t("loadReportsFailed")}</p></div>`;
     return;
   }
 
@@ -442,7 +714,7 @@ async function loadReports() {
   reportsEl.innerHTML = "";
 
   if (!reports.length) {
-    reportsEl.innerHTML = '<div class="item"><p>Nenhum relatório gerado ainda.</p></div>';
+    reportsEl.innerHTML = `<div class="item"><p>${t("noReportsYet")}</p></div>`;
     return;
   }
 
@@ -453,9 +725,9 @@ async function loadReports() {
     item.className = "item";
     item.innerHTML = `
       <strong>${escapeHtml(report.target || "—")} · ${escapeHtml(report.status || "—")}</strong>
-      <p>${formatDate(report.finished_at)} · hosts: ${report.hosts ?? 0} · críticos/altos: ${highs}</p>
+      <p>${formatDate(report.finished_at)} · hosts: ${report.hosts ?? 0} · ${t("critHighLabel")}: ${highs}</p>
       <div class="item-actions">
-        <button class="secondary" data-view-report="${report.id}" style="width:auto;padding:5px 10px;font-size:12px">Ver painel</button>
+        <button class="secondary" data-view-report="${report.id}" style="width:auto;padding:5px 10px;font-size:12px">${t("btnViewPanel")}</button>
         <a href="${report.markdown_url}">Markdown</a>
         <a href="${report.json_url}">JSON</a>
       </div>
@@ -472,7 +744,7 @@ async function openSavedReport(scanId) {
   const response = await fetch(`/api/scans/${scanId}/report.json`);
   if (!response.ok) {
     reportContent.className = "empty-state";
-    reportContent.textContent = "Não foi possível abrir este relatório.";
+    reportContent.textContent = t("openReportFailed");
     return;
   }
   renderReport(await response.json());
@@ -1088,8 +1360,8 @@ function resetBadAgent() {
   badHighCount.textContent = "0";
   badOverallStatus.textContent = "—";
   badAgentReport.className = "empty-state";
-  badAgentReport.textContent = "Aguardando resultado do test_bad_agent.";
-  badAgentReportStatus.textContent = "rodando";
+  badAgentReport.textContent = t("awaitingBadAgent");
+  badAgentReportStatus.textContent = t("statusRunning");
 }
 
 function resetPerformance() {
@@ -1099,8 +1371,8 @@ function resetPerformance() {
   perfDownload.textContent = "—";
   perfOverallStatus.textContent = "—";
   performanceReport.className = "empty-state";
-  performanceReport.textContent = "Aguardando resultado da análise.";
-  performanceReportStatus.textContent = "rodando";
+  performanceReport.textContent = t("awaitingPerformance");
+  performanceReportStatus.textContent = t("statusRunning");
 }
 
 function resetWebsiteSecurity() {
@@ -1110,8 +1382,8 @@ function resetWebsiteSecurity() {
   webHttpStatus.textContent = "—";
   webOverallStatus.textContent = "—";
   websiteReport.className = "empty-state";
-  websiteReport.textContent = "Aguardando resultado da análise web.";
-  websiteReportStatus.textContent = "rodando";
+  websiteReport.textContent = t("awaitingWebsite");
+  websiteReportStatus.textContent = t("statusRunning");
 }
 
 /* ── Console lines ──────────────────────────────────────── */
@@ -1119,7 +1391,7 @@ function resetWebsiteSecurity() {
 function addConsoleLine(targetEl, kind, message) {
   const line = document.createElement("div");
   line.className = "console-line";
-  const now = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  const now = new Date().toLocaleTimeString(currentLang === "pt" ? "pt-BR" : currentLang, { hour12: false });
   line.innerHTML = `<time>${now}</time><span class="console-tag ${escapeHtml(kind)}">${escapeHtml(kind)}</span><span class="console-msg">${escapeHtml(message)}</span>`;
   targetEl.appendChild(line);
   targetEl.scrollTop = targetEl.scrollHeight;
@@ -1155,7 +1427,7 @@ function normalizeAiAnalysis(value) {
 
 function formatDate(value) {
   if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR");
+  return new Date(value).toLocaleString(currentLang === "pt" ? "pt-BR" : currentLang);
 }
 
 function escapeHtml(value) {
@@ -1169,6 +1441,10 @@ function escapeHtml(value) {
 
 /* ── Init ───────────────────────────────────────────────── */
 
+document.querySelectorAll(".lang-btn").forEach((btn) => {
+  btn.addEventListener("click", () => setLanguage(btn.dataset.lang));
+});
+setLanguage(currentLang);
 serviceStatus.textContent = "online";
 loadReports();
 loadSchedules();
