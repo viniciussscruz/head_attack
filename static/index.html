@@ -25,6 +25,7 @@
           <button type="button" class="tab-button active" data-tab="dashboard">Dashboard</button>
           <button type="button" class="tab-button" data-tab="badAgent">Bad Agent</button>
           <button type="button" class="tab-button" data-tab="performance">Performance</button>
+          <button type="button" class="tab-button" data-tab="websiteSecurity">Website Security</button>
         </nav>
         <div class="status-pill" id="serviceStatus">pronto</div>
       </div>
@@ -284,6 +285,85 @@
           <div class="status-pill idle" id="performanceReportStatus">vazio</div>
         </div>
         <div id="performanceReport" class="empty-state">
+          Nenhum resultado ainda.
+        </div>
+      </section>
+    </main>
+
+    <!-- ── Website Security ────────────────────────────── -->
+    <main class="layout tab-view" id="websiteSecurityTab">
+      <section class="panel controls">
+        <h2>Website Security</h2>
+        <form id="websiteSecurityForm">
+          <label>
+            URL autorizada
+            <input id="websiteUrl" name="websiteUrl" placeholder="https://example.com" autocomplete="off" required />
+          </label>
+
+          <label class="check">
+            <input id="websiteAuthorized" type="checkbox" />
+            Confirmo que tenho autorização para testar este site
+          </label>
+
+          <label class="check">
+            <input id="websiteSensitivePaths" type="checkbox" checked />
+            Checar arquivos sensíveis comuns com requisições leves
+          </label>
+
+          <div class="divider"></div>
+
+          <label>
+            Endpoint da IA
+            <input id="webAiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
+          </label>
+
+          <label>
+            Modelo
+            <select id="webAiModel">
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            </select>
+          </label>
+
+          <label>
+            API key da IA
+            <input id="webAiApiKey" type="password" placeholder="Opcional — não é salva" autocomplete="off" />
+          </label>
+
+          <button type="button" class="secondary" id="loadWebAiModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="webAiModelStatus">Informe a API key para carregar modelos.</p>
+
+          <button type="submit">Testar website</button>
+        </form>
+      </section>
+
+      <section class="panel live">
+        <div class="panel-head">
+          <div>
+            <h2>Execução da análise web</h2>
+            <p id="websiteActive">Nenhum teste em execução.</p>
+          </div>
+          <div class="status-pill idle" id="websiteStatus">aguardando</div>
+        </div>
+
+        <div class="summary-grid">
+          <div><span>Achados</span><strong id="webFindingsCount">0</strong></div>
+          <div><span>Críticos/Altos</span><strong id="webHighCount">0</strong></div>
+          <div><span>Status HTTP</span><strong id="webHttpStatus">—</strong></div>
+          <div><span>Status</span><strong id="webOverallStatus">—</strong></div>
+        </div>
+
+        <div class="console" id="websiteConsole"></div>
+      </section>
+
+      <section class="panel report-detail">
+        <div class="panel-head">
+          <div>
+            <h2>Website Security Report</h2>
+            <p id="websiteSubtitle">Headers, TLS, cookies, formulários, CORS e exposição de arquivos.</p>
+          </div>
+          <div class="status-pill idle" id="websiteReportStatus">vazio</div>
+        </div>
+        <div id="websiteReport" class="empty-state">
           Nenhum resultado ainda.
         </div>
       </section>

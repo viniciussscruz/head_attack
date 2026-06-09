@@ -18,6 +18,7 @@ const tabButtons = document.querySelectorAll("[data-tab]");
 const dashboardTab = document.querySelector("#dashboardTab");
 const badAgentTab = document.querySelector("#badAgentTab");
 const performanceTab = document.querySelector("#performanceTab");
+const websiteSecurityTab = document.querySelector("#websiteSecurityTab");
 const badAgentForm = document.querySelector("#badAgentForm");
 const badAgentTarget = document.querySelector("#badAgentTarget");
 const aiEndpoint = document.querySelector("#aiEndpoint");
@@ -55,6 +56,25 @@ const perfOverallStatus = document.querySelector("#perfOverallStatus");
 const performanceSubtitle = document.querySelector("#performanceSubtitle");
 const performanceReportStatus = document.querySelector("#performanceReportStatus");
 const performanceReport = document.querySelector("#performanceReport");
+const websiteSecurityForm = document.querySelector("#websiteSecurityForm");
+const websiteUrl = document.querySelector("#websiteUrl");
+const websiteAuthorized = document.querySelector("#websiteAuthorized");
+const websiteSensitivePaths = document.querySelector("#websiteSensitivePaths");
+const webAiEndpoint = document.querySelector("#webAiEndpoint");
+const webAiModel = document.querySelector("#webAiModel");
+const webAiApiKey = document.querySelector("#webAiApiKey");
+const loadWebAiModels = document.querySelector("#loadWebAiModels");
+const webAiModelStatus = document.querySelector("#webAiModelStatus");
+const websiteActive = document.querySelector("#websiteActive");
+const websiteStatus = document.querySelector("#websiteStatus");
+const websiteConsole = document.querySelector("#websiteConsole");
+const webFindingsCount = document.querySelector("#webFindingsCount");
+const webHighCount = document.querySelector("#webHighCount");
+const webHttpStatus = document.querySelector("#webHttpStatus");
+const webOverallStatus = document.querySelector("#webOverallStatus");
+const websiteSubtitle = document.querySelector("#websiteSubtitle");
+const websiteReportStatus = document.querySelector("#websiteReportStatus");
+const websiteReport = document.querySelector("#websiteReport");
 const hostsCount = document.querySelector("#hostsCount");
 const portsCount = document.querySelector("#portsCount");
 const highCount = document.querySelector("#highCount");
@@ -63,6 +83,7 @@ const overallStatus = document.querySelector("#overallStatus");
 let activeSource = null;
 let activeBadSource = null;
 let activePerformanceSource = null;
+let activeWebsiteSource = null;
 
 /* ── Severity helpers ───────────────────────────────────── */
 
@@ -84,6 +105,7 @@ function switchTab(tabName) {
   dashboardTab.classList.toggle("active", tabName === "dashboard");
   badAgentTab.classList.toggle("active", tabName === "badAgent");
   performanceTab.classList.toggle("active", tabName === "performance");
+  websiteSecurityTab.classList.toggle("active", tabName === "websiteSecurity");
 }
 
 /* ── Event listeners ────────────────────────────────────── */
@@ -92,8 +114,10 @@ scanForm.addEventListener("submit", async (event) => { event.preventDefault(); a
 scheduleForm.addEventListener("submit", async (event) => { event.preventDefault(); await createSchedule(); });
 badAgentForm.addEventListener("submit", async (event) => { event.preventDefault(); await startBadAgent(); });
 performanceForm.addEventListener("submit", async (event) => { event.preventDefault(); await startPerformanceAnalysis(); });
+websiteSecurityForm.addEventListener("submit", async (event) => { event.preventDefault(); await startWebsiteSecurity(); });
 loadAiModels.addEventListener("click", async () => { await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus); });
 loadPerfAiModels.addEventListener("click", async () => { await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus); });
+loadWebAiModels.addEventListener("click", async () => { await loadAvailableAiModels(webAiEndpoint, webAiApiKey, webAiModel, webAiModelStatus); });
 refreshReports.addEventListener("click", () => { loadReports(); loadSchedules(); });
 
 /* ── Scan ───────────────────────────────────────────────── */
@@ -262,6 +286,60 @@ function handlePerformanceEvent(payload) {
   if (event === "failed") setPerformanceStatus("falhou", "bad");
 }
 
+/* ── Website Security ──────────────────────────────────── */
+
+async function startWebsiteSecurity() {
+  resetWebsiteSecurity();
+  setWebsiteStatus("rodando", "warn");
+
+  const response = await fetch("/api/website-security", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: websiteUrl.value.trim(),
+      confirm_authorized: websiteAuthorized.checked,
+      include_sensitive_paths: websiteSensitivePaths.checked,
+      ai_endpoint: webAiEndpoint.value.trim(),
+      ai_model: webAiModel.value.trim(),
+      ai_api_key: webAiApiKey.value.trim() || null,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
+    setWebsiteStatus("erro", "bad");
+    addWebsiteLine("erro", error.detail || "Não foi possível iniciar o teste de website.");
+    return;
+  }
+
+  const data = await response.json();
+  websiteActive.textContent = `Website scan ${data.scan_id}`;
+  streamWebsiteSecurity(data.scan_id);
+}
+
+function streamWebsiteSecurity(scanId) {
+  if (activeWebsiteSource) activeWebsiteSource.close();
+  activeWebsiteSource = new EventSource(`/api/website-security/${scanId}/events`);
+  activeWebsiteSource.onmessage = (event) => handleWebsiteEvent(JSON.parse(event.data));
+  activeWebsiteSource.onerror = () => { addWebsiteLine("stream", "Conexão de eventos encerrada."); activeWebsiteSource.close(); };
+}
+
+function handleWebsiteEvent(payload) {
+  const event = payload.event || "info";
+  addWebsiteLine(event, payload.message || "");
+
+  if (event === "http_done") {
+    webHttpStatus.textContent = payload.data.status || "—";
+  }
+
+  if (event === "finished") {
+    renderWebsiteReport(payload.data);
+    setWebsiteStatus("concluído", statusClass(payload.data.summary?.overall_status));
+  }
+
+  if (event === "failed") setWebsiteStatus("falhou", "bad");
+}
+
 /* ── AI models ──────────────────────────────────────────── */
 
 async function loadAvailableAiModels(endpointInput, keyInput, modelSelect, statusElement) {
@@ -425,6 +503,8 @@ function renderReport(report) {
       ${metricCard("Críticos/Altos", highTotal)}
     </div>
 
+    ${exportControls("scan", report.id)}
+
     ${buildSection("Prioridade de correção", findings.length, `
       ${buildFilterBar(findings)}
       <div class="finding-list">
@@ -474,6 +554,8 @@ function renderBadAgentReport(report) {
       ${metricCard("Evidências", summary.total_evidence || 0)}
       ${metricCard("Críticos/Altos", highTotal)}
     </div>
+
+    ${exportControls("bad-agent", report.id)}
 
     <div class="agent-safety">
       <strong>Limites de segurança ativos</strong>
@@ -532,6 +614,8 @@ function renderPerformanceReport(report) {
       ${metricCard("Speed", speed.status === "ok" ? `${speed.download_mbps} Mbps` : speed.status || "—")}
     </div>
 
+    ${exportControls("performance", report.id)}
+
     ${buildSection("Maiores emissores broadcast/multicast", talkers.length, `
       <div class="host-grid">
         ${talkers.length ? talkers.map(talkerCard).join("") : `<div class="empty-state">${escapeHtml(broadcast.message || "Nenhum pacote capturado na amostra.")}</div>`}
@@ -561,6 +645,71 @@ function renderPerformanceReport(report) {
   `;
 
   setupInteractivity(performanceReport);
+}
+
+function renderWebsiteReport(report) {
+  const summary = report.summary || {};
+  const counts = summary.by_severity || {};
+  const highTotal = (counts.critical || 0) + (counts.high || 0);
+  const page = report.page || {};
+  const tls = report.tls || {};
+  const sensitive = report.sensitive_paths || {};
+  const aiAnalysis = normalizeAiAnalysis(report.ai_analysis);
+  const tokens = aiAnalysis.token_usage || {};
+
+  webFindingsCount.textContent = summary.total_findings || 0;
+  webHighCount.textContent = String(highTotal);
+  webHttpStatus.textContent = page.status || "—";
+  webOverallStatus.textContent = summary.overall_status || "—";
+  websiteSubtitle.textContent = `${report.final_url || report.target} · ${formatDate(report.finished_at)} · ${summary.total_findings || 0} achados`;
+  websiteReportStatus.textContent = summary.overall_status || "ok";
+  websiteReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
+  websiteReport.className = "report-body";
+
+  const findings = report.findings || [];
+  websiteReport.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", summary.overall_status || "ok")}
+      ${metricCard("HTTP", page.status || "—")}
+      ${metricCard("Achados", summary.total_findings || 0)}
+      ${metricCard("Críticos/Altos", highTotal)}
+    </div>
+
+    ${exportControls("website", report.id)}
+
+    <div class="agent-safety">
+      <strong>Limites de segurança ativos</strong>
+      <span>Sem login</span>
+      <span>Sem força bruta</span>
+      <span>Sem payload ofensivo</span>
+      <span>Sem fuzzing pesado</span>
+    </div>
+
+    ${buildSection("Achados de segurança web", findings.length, `
+      ${buildFilterBar(findings)}
+      <div class="finding-list">
+        ${findings.length ? findings.map(websiteFindingCard).join("") : '<div class="empty-state">Nenhum achado relevante nos testes seguros.</div>'}
+      </div>
+    `)}
+
+    ${buildSection("TLS e certificado", 0, tlsCard(tls))}
+
+    ${buildSection("Arquivos sensíveis checados", (sensitive.checked || []).length, sensitivePathsTable(sensitive), true)}
+
+    ${buildSection("Análise da IA", 0, `
+      <div class="ai-usage">
+        <span>${aiAnalysis.used_api ? "IA usada" : "Análise local"}</span>
+        <span>Modelo: ${escapeHtml(aiAnalysis.model || "—")}</span>
+        <span>Prompt: ${tokens.prompt_tokens || 0}</span>
+        <span>Resposta: ${tokens.completion_tokens || 0}</span>
+        <span>Total: ${tokens.total_tokens || 0}</span>
+      </div>
+      ${aiAnalysis.fallback_reason ? `<p class="ai-note">${escapeHtml(aiAnalysis.fallback_reason)}</p>` : ""}
+      <pre class="ai-analysis">${escapeHtml(aiAnalysis.content || "Sem análise disponível.")}</pre>
+    `, true)}
+  `;
+
+  setupInteractivity(websiteReport);
 }
 
 /* ── Section & filter builders ──────────────────────────── */
@@ -606,6 +755,30 @@ function buildFilterBar(items) {
   `;
 }
 
+function exportControls(reportType, reportId) {
+  if (!reportId) return "";
+  const safeType = escapeHtml(reportType);
+  const safeId = escapeHtml(reportId);
+  return `
+    <div class="export-bar" data-report-type="${safeType}" data-report-id="${safeId}">
+      <div>
+        <strong>Exportar relatório</strong>
+        <span>Escolha o formato para baixar este resultado.</span>
+      </div>
+      <label>
+        Formato
+        <select class="export-format">
+          <option value="md">Markdown</option>
+          <option value="json">JSON</option>
+          <option value="pdf">PDF</option>
+          <option value="csv">Planilha CSV</option>
+        </select>
+      </label>
+      <button type="button" class="secondary export-button">Exportar</button>
+    </div>
+  `;
+}
+
 function setupInteractivity(container) {
   container.querySelectorAll(".section-header").forEach((header) => {
     header.addEventListener("click", () => {
@@ -625,6 +798,17 @@ function setupInteractivity(container) {
       body.querySelectorAll(".finding[data-severity]").forEach((el) => {
         el.style.display = filter === "all" || el.dataset.severity === filter ? "" : "none";
       });
+    });
+  });
+
+  container.querySelectorAll(".export-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const bar = button.closest(".export-bar");
+      if (!bar) return;
+      const format = bar.querySelector(".export-format")?.value || "md";
+      const type = encodeURIComponent(bar.dataset.reportType);
+      const id = encodeURIComponent(bar.dataset.reportId);
+      window.location.href = `/api/exports/${type}/${id}.${format}`;
     });
   });
 }
@@ -683,6 +867,57 @@ function performanceFindingCard(finding) {
       <p>${escapeHtml(finding.detail)}</p>
       <p><strong>Recomendação:</strong> ${escapeHtml(finding.recommendation)}</p>
     </article>
+  `;
+}
+
+function websiteFindingCard(finding) {
+  const link = finding.url ? `<div class="device-links"><a href="${escapeHtml(finding.url)}" target="_blank" rel="noopener noreferrer">Abrir evidência</a></div>` : "";
+  return `
+    <article class="finding" data-severity="${escapeHtml(finding.severity)}">
+      <div class="finding-header">
+        <span class="severity ${escapeHtml(finding.severity)}">${sevLabel(finding.severity)}</span>
+        <h4>${escapeHtml(finding.title)}</h4>
+      </div>
+      <p><strong>Categoria:</strong> ${escapeHtml(finding.category || "web")}</p>
+      <p>${escapeHtml(finding.detail)}</p>
+      <p><strong>Recomendação:</strong> ${escapeHtml(finding.recommendation)}</p>
+      ${link}
+    </article>
+  `;
+}
+
+function tlsCard(tls) {
+  if (!tls || tls.status === "skipped") {
+    return `<div class="empty-state">${escapeHtml(tls?.message || "TLS não avaliado.")}</div>`;
+  }
+  if (tls.status !== "ok") {
+    return `<div class="empty-state">${escapeHtml(tls.message || "Falha ao validar TLS.")}</div>`;
+  }
+  return `
+    <div class="pass-grid">
+      ${metricCard("Versão", tls.version || "—")}
+      ${metricCard("Expira em", typeof tls.days_remaining === "number" ? `${tls.days_remaining} dias` : "—")}
+      ${metricCard("Válido até", tls.expires_at || "—")}
+      ${metricCard("Cipher", Array.isArray(tls.cipher) ? tls.cipher[0] : "—")}
+    </div>
+  `;
+}
+
+function sensitivePathsTable(sensitive) {
+  const checked = sensitive?.checked || [];
+  if (!checked.length) return '<div class="empty-state">Checagem de caminhos sensíveis não executada.</div>';
+  return `
+    <div class="finding-list">
+      ${checked.map((item) => `
+        <article class="finding" data-severity="${item.exposed ? "medium" : "info"}">
+          <div class="finding-header">
+            <span class="severity ${item.exposed ? "medium" : "info"}">${item.exposed ? "Revisar" : "OK"}</span>
+            <h4>${escapeHtml(item.path)}</h4>
+          </div>
+          <p>Status HTTP: ${escapeHtml(item.status || "sem resposta")}</p>
+        </article>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -828,6 +1063,7 @@ function applySummary(summary) {
 function setStatus(text, cls) { scanStatus.textContent = text; scanStatus.className = `status-pill ${cls || "idle"}`; }
 function setBadStatus(text, cls) { badAgentStatus.textContent = text; badAgentStatus.className = `status-pill ${cls || "idle"}`; }
 function setPerformanceStatus(text, cls) { performanceStatus.textContent = text; performanceStatus.className = `status-pill ${cls || "idle"}`; }
+function setWebsiteStatus(text, cls) { websiteStatus.textContent = text; websiteStatus.className = `status-pill ${cls || "idle"}`; }
 
 function statusClass(status) {
   if (status === "critical" || status === "attention") return "bad";
@@ -867,6 +1103,17 @@ function resetPerformance() {
   performanceReportStatus.textContent = "rodando";
 }
 
+function resetWebsiteSecurity() {
+  websiteConsole.innerHTML = "";
+  webFindingsCount.textContent = "0";
+  webHighCount.textContent = "0";
+  webHttpStatus.textContent = "—";
+  webOverallStatus.textContent = "—";
+  websiteReport.className = "empty-state";
+  websiteReport.textContent = "Aguardando resultado da análise web.";
+  websiteReportStatus.textContent = "rodando";
+}
+
 /* ── Console lines ──────────────────────────────────────── */
 
 function addConsoleLine(targetEl, kind, message) {
@@ -881,6 +1128,7 @@ function addConsoleLine(targetEl, kind, message) {
 function addLine(kind, message) { addConsoleLine(consoleEl, kind, message); }
 function addBadLine(kind, message) { addConsoleLine(badAgentConsole, kind, message); }
 function addPerformanceLine(kind, message) { addConsoleLine(performanceConsole, kind, message); }
+function addWebsiteLine(kind, message) { addConsoleLine(websiteConsole, kind, message); }
 
 /* ── Misc utils ─────────────────────────────────────────── */
 

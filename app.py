@@ -6,13 +6,15 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from bad_agent import AGENT_MEDIA_DIR, SAFE_TESTS, list_ai_models, run_bad_agent
 from network_performance import run_network_performance
+from report_exports import export_report
 from scanner import REPORTS_DIR, ScanError, run_scan, validate_target
+from website_security import run_website_security
 
 
 app = FastAPI(title="Security Network Audit", version="1.0.0")
@@ -47,6 +49,15 @@ class PerformanceRequest(BaseModel):
     interface: str | None = None
     sample_seconds: int = Field(default=15, ge=5, le=60)
     run_speedtest: bool = True
+    ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
+    ai_model: str | None = "gpt-4.1-mini"
+    ai_api_key: str | None = None
+
+
+class WebsiteSecurityRequest(BaseModel):
+    url: str
+    confirm_authorized: bool = False
+    include_sensitive_paths: bool = True
     ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
     ai_model: str | None = "gpt-4.1-mini"
     ai_api_key: str | None = None
@@ -117,10 +128,28 @@ class PerformanceState:
             await queue.put(payload)
 
 
+class WebsiteSecurityState:
+    def __init__(self, scan_id: str, request: WebsiteSecurityRequest) -> None:
+        self.scan_id = scan_id
+        self.url = request.url
+        self.created_at = datetime.now(timezone.utc).isoformat()
+        self.status = "queued"
+        self.events: list[dict[str, Any]] = []
+        self.subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
+        self.report: dict[str, Any] | None = None
+        self.error: str | None = None
+
+    async def publish(self, payload: dict[str, Any]) -> None:
+        self.events.append(payload)
+        for queue in list(self.subscribers):
+            await queue.put(payload)
+
+
 scans: dict[str, ScanState] = {}
 schedules: dict[str, ScheduleState] = {}
 bad_agents: dict[str, BadAgentState] = {}
 performance_runs: dict[str, PerformanceState] = {}
+website_runs: dict[str, WebsiteSecurityState] = {}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -236,6 +265,21 @@ async def list_reports() -> list[dict[str, Any]]:
             }
         )
     return items
+
+
+@app.get("/api/exports/{report_type}/{report_id}.{format_name}")
+async def export_report_endpoint(report_type: str, report_id: str, format_name: str) -> Response:
+    try:
+        content, media_type, filename = export_report(report_type, report_id, format_name)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Relatorio nao encontrado.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/api/schedules")
@@ -394,6 +438,56 @@ async def performance_events(analysis_id: str) -> StreamingResponse:
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+@app.post("/api/website-security")
+async def create_website_security(request: WebsiteSecurityRequest) -> dict[str, str]:
+    if not request.confirm_authorized:
+        raise HTTPException(status_code=400, detail="Confirme que você tem autorização para testar este site.")
+    scan_id = uuid.uuid4().hex[:12]
+    state = WebsiteSecurityState(scan_id, request)
+    website_runs[scan_id] = state
+    asyncio.create_task(_website_security_task(state, request))
+    return {"scan_id": scan_id, "events_url": f"/api/website-security/{scan_id}/events"}
+
+
+@app.get("/api/website-security/{scan_id}")
+async def get_website_security(scan_id: str) -> dict[str, Any]:
+    state = _website_security_or_404(scan_id)
+    return {
+        "id": state.scan_id,
+        "url": state.url,
+        "status": state.status,
+        "created_at": state.created_at,
+        "events": state.events,
+        "report": state.report,
+        "error": state.error,
+    }
+
+
+@app.get("/api/website-security/{scan_id}/events")
+async def website_security_events(scan_id: str) -> StreamingResponse:
+    state = _website_security_or_404(scan_id)
+
+    async def event_stream():
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        state.subscribers.add(queue)
+        try:
+            for payload in state.events:
+                yield _sse(payload)
+            while state.status in {"queued", "running"}:
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=15)
+                    yield _sse(payload)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+            while not queue.empty():
+                yield _sse(queue.get_nowait())
+            yield _sse({"event": "stream_closed", "message": "Conexao de eventos finalizada."})
+        finally:
+            state.subscribers.discard(queue)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 async def _scan_task(state: ScanState) -> None:
     state.status = "running"
     try:
@@ -449,6 +543,27 @@ async def _performance_task(state: PerformanceState, request: PerformanceRequest
         await state.publish({"event": "failed", "message": str(exc), "data": {}})
 
 
+async def _website_security_task(state: WebsiteSecurityState, request: WebsiteSecurityRequest) -> None:
+    state.status = "running"
+    try:
+        state.report = await run_website_security(
+            state.scan_id,
+            request.url,
+            request.include_sensitive_paths,
+            {
+                "endpoint": request.ai_endpoint,
+                "model": request.ai_model,
+                "api_key": request.ai_api_key,
+            },
+            state.publish,
+        )
+        state.status = "finished"
+    except Exception as exc:
+        state.error = str(exc)
+        state.status = "failed"
+        await state.publish({"event": "failed", "message": str(exc), "data": {}})
+
+
 async def _schedule_loop(state: ScheduleState, run_now: bool) -> None:
     if not run_now:
         await _sleep_until_next(state)
@@ -483,6 +598,13 @@ def _performance_or_404(analysis_id: str) -> PerformanceState:
     state = performance_runs.get(analysis_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Network Performance não encontrado.")
+    return state
+
+
+def _website_security_or_404(scan_id: str) -> WebsiteSecurityState:
+    state = website_runs.get(scan_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Website Security não encontrado.")
     return state
 
 

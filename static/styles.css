@@ -480,6 +480,44 @@ code {
   letter-spacing: -.03em;
 }
 
+/* ── Export controls ───────────────────────────────────── */
+
+.export-bar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.export-bar > div { flex: 1; min-width: 180px; }
+
+.export-bar strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.export-bar span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.export-bar label {
+  width: 180px;
+  margin: 0;
+}
+
+.export-bar button {
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
 /* ── Collapsible sections ───────────────────────────────── */
 
 .report-section { display: grid; gap: 10px; }
@@ -827,6 +865,8 @@ code {
 @media (max-width: 600px) {
   .summary-grid, .report-metrics { grid-template-columns: repeat(2, 1fr); }
   .pass-grid, .host-grid { grid-template-columns: 1fr; }
+  .export-bar { align-items: stretch; flex-direction: column; }
+  .export-bar label, .export-bar button { width: 100%; }
 }
 
 @media (max-width: 400px) {

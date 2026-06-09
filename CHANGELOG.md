@@ -26,6 +26,7 @@ The format follows the spirit of [Keep a Changelog](https://keepachangelog.com/e
 - Heavy simulation checks for brute-force readiness, reset/reboot exposure indicators, and UPnP/SSDP exposure without performing destructive actions.
 - OpenAI-compatible model loading from the dashboard and token usage reporting for `test_bad_agent` AI analysis.
 - `Network Performance` tab with local interface/neighbor inventory, passive broadcast/multicast talker sampling, optional speed test, findings, and AI token usage.
+- `Website Security` tab for authorized web application checks covering headers, TLS, cookies, forms, CORS, mixed content, common sensitive paths, safe findings, and AI token usage.
 
 ### Changed
 

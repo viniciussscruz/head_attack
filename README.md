@@ -20,6 +20,7 @@ The default maximum target size is 512 IPv4 addresses per scan. The scanner does
 - Web dashboard for launching scans.
 - `test_bad_agent` tab for controlled adversary simulation on authorized private networks.
 - `Network Performance` tab for broadcast/multicast analysis, top talkers, internet speed tests, and AI-assisted performance interpretation.
+- `Website Security` tab for authorized web application checks, security headers, TLS, cookies, forms, CORS, common sensitive-file exposure, and AI-assisted remediation.
 - Real-time scan output using Server-Sent Events.
 - Quick and controlled full scan profiles.
 - Host discovery using ICMP and lightweight TCP probing.
@@ -27,7 +28,7 @@ The default maximum target size is 512 IPv4 addresses per scan. The scanner does
 - Finding severity classification: `critical`, `high`, `medium`, `low`, and `info`.
 - Practical remediation guidance for each finding.
 - Visual dashboard reports with prioritized findings, passed checks, affected devices, and direct HTTP/HTTPS shortcuts when a device panel is detected.
-- Markdown and JSON report files for export and persistence.
+- Report export from every visual report in Markdown, JSON, PDF, and spreadsheet-friendly CSV formats.
 - In-memory recurring scan scheduling.
 - Example `systemd` service for running the dashboard continuously.
 
@@ -76,6 +77,30 @@ Notes:
 - Broadcast/multicast sampling may require running with packet-capture permission or setting capabilities on `tcpdump`.
 - Speed tests need internet access and the `speedtest-cli` dependency from `requirements.txt`.
 - The AI API key is not saved to disk.
+
+## Website Security
+
+The `Website Security` tab runs safe checks against websites you own or are explicitly authorized to assess.
+
+It checks:
+
+- HTTP status, redirects, response headers, and selected server hints.
+- Security headers such as HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy.
+- TLS certificate status, negotiated TLS version, cipher, and expiry.
+- Cookie flags such as Secure, HttpOnly, and SameSite.
+- Form risks such as password forms over non-HTTPS, password forms using GET, and missing visible CSRF token hints.
+- CORS headers using a harmless synthetic Origin.
+- Mixed-content references on HTTPS pages.
+- A short fixed list of common sensitive paths such as `/.env`, `/.git/HEAD`, and backup/database filenames.
+- AI-assisted remediation with token usage reporting.
+
+Safety limits:
+
+- Requires explicit authorization confirmation in the UI.
+- Does not attempt login.
+- Does not run brute force.
+- Does not send exploit payloads.
+- Does not run heavy fuzzing or high-volume crawling.
 
 ## Requirements
 
@@ -158,7 +183,14 @@ Reports can be opened directly in the dashboard. The visual report shows:
 - Device cards with open ports and direct links to detected web panels.
 - Manual checks that still need router or Wi-Fi controller access.
 
-JSON and Markdown exports are also written to:
+Every visual report includes an export control. The user can download the current report as:
+
+- Markdown (`.md`)
+- JSON (`.json`)
+- PDF (`.pdf`)
+- Spreadsheet-friendly CSV (`.csv`)
+
+Network scan JSON and Markdown exports are also written to:
 
 ```text
 reports/
@@ -170,6 +202,8 @@ Each scan creates:
 - `reports/<scan_id>.md`
 
 The visual report is the primary reading experience. The Markdown report is useful for sharing a quick text summary, and the JSON report is useful for automation, diffing, or feeding another reporting pipeline.
+
+The Bad Agent, Network Performance, and Website Security tabs save their JSON reports under their own report folders and expose the same dashboard export formats.
 
 ## Dashboard Workflow
 
@@ -197,6 +231,15 @@ For `Network Performance`:
 4. Keep speed test enabled if you want internet download/upload/ping.
 5. Optionally provide an AI API key and load available models.
 6. Review top broadcast/multicast talkers, speed test results, findings, and AI token usage.
+
+For `Website Security`:
+
+1. Open the `Website Security` tab.
+2. Enter an authorized URL.
+3. Confirm that you have permission to test it.
+4. Choose whether to check common sensitive paths.
+5. Optionally provide an AI API key and load available models.
+6. Review findings, TLS details, sensitive-path results, and AI token usage.
 
 ## Recommended Manual Checks
 
