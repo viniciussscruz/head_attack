@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from bad_agent import AGENT_MEDIA_DIR, SAFE_TESTS, run_bad_agent
+from bad_agent import AGENT_MEDIA_DIR, SAFE_TESTS, list_ai_models, run_bad_agent
 from scanner import REPORTS_DIR, ScanError, run_scan, validate_target
 
 
@@ -34,6 +34,11 @@ class BadAgentRequest(BaseModel):
     capture_rtsp_frame: bool = False
     ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
     ai_model: str | None = "gpt-4.1-mini"
+    ai_api_key: str | None = None
+
+
+class AiModelsRequest(BaseModel):
+    ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
     ai_api_key: str | None = None
 
 
@@ -237,6 +242,11 @@ async def delete_schedule(schedule_id: str) -> dict[str, str]:
 @app.get("/api/bad-agent/tests")
 async def bad_agent_tests() -> dict[str, str]:
     return SAFE_TESTS
+
+
+@app.post("/api/bad-agent/models")
+async def bad_agent_models(request: AiModelsRequest) -> dict[str, Any]:
+    return await list_ai_models(request.ai_endpoint, request.ai_api_key)
 
 
 @app.post("/api/bad-agent")

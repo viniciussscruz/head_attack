@@ -206,6 +206,13 @@ button.secondary:hover {
   line-height: 1.4;
 }
 
+.model-status {
+  margin: 8px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .danger-check {
   align-items: flex-start;
   padding: 10px;
@@ -617,6 +624,28 @@ code {
   background: #101828;
   color: #e6edf6;
   font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.ai-usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ai-usage span {
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #e8f2fb;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ai-note {
+  margin-bottom: 10px;
+  color: var(--warn);
+  font-size: 14px;
 }
 
 .agent-media {

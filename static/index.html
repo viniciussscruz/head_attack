@@ -138,13 +138,18 @@
 
           <label>
             Modelo
-            <input id="aiModel" name="aiModel" value="gpt-4.1-mini" autocomplete="off" />
+            <select id="aiModel" name="aiModel">
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            </select>
           </label>
 
           <label>
             API key da IA
             <input id="aiApiKey" name="aiApiKey" type="password" placeholder="Opcional: não é salva" autocomplete="off" />
           </label>
+
+          <button type="button" class="secondary" id="loadAiModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="aiModelStatus">Modelos só podem ser carregados depois de informar a API key.</p>
 
           <div class="test-options">
             <p class="option-help">

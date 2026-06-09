@@ -37,6 +37,7 @@ SAFE_TESTS = {
     "upnp_exposure": "UPnP/SSDP ativo na rede",
 }
 SENSITIVE_PORTS = [21, 22, 23, 80, 139, 443, 445, 554, 1883, 5000, 5001, 5900, 8000, 8080, 8443, 8888, 9000, 3389]
+DEFAULT_AI_MODEL = "gpt-4.1-mini"
 
 
 @dataclass
@@ -97,8 +98,12 @@ async def run_bad_agent(
 
     summary = summarize(evidence, len(hosts), started_ts)
     ai_analysis = await maybe_ai_analysis(ai_config, network=str(network), summary=summary, evidence=evidence)
-    if ai_analysis:
-        await _emit(emit, "ai_analysis", "Análise da IA concluída.", {"analysis": ai_analysis})
+    await _emit(
+        emit,
+        "ai_analysis",
+        "Análise por IA concluída." if ai_analysis["used_api"] else "Análise local concluída; nenhum token de IA foi consumido.",
+        {"analysis": ai_analysis},
+    )
 
     report = {
         "id": agent_id,
@@ -503,15 +508,50 @@ async def capture_rtsp_snapshot(
     return None
 
 
-async def maybe_ai_analysis(ai_config: dict[str, str | None], network: str, summary: dict[str, Any], evidence: list[AgentEvidence]) -> str | None:
+async def list_ai_models(endpoint: str | None, api_key: str | None) -> dict[str, Any]:
+    key = (api_key or "").strip()
+    if not key:
+        return {
+            "models": [],
+            "source": "not_loaded",
+            "message": "Informe uma API key para carregar os modelos disponíveis para sua conta.",
+        }
+
+    models_endpoint = models_endpoint_from_chat_endpoint(endpoint or "https://api.openai.com/v1/chat/completions")
+    if not models_endpoint.startswith("https://"):
+        return {"models": [], "source": "blocked", "message": "Apenas endpoints HTTPS são aceitos."}
+
+    def call_models() -> dict[str, Any]:
+        request = urllib.request.Request(
+            models_endpoint,
+            headers={"Authorization": f"Bearer {key}"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            return {"models": [], "source": "error", "message": f"Não foi possível carregar modelos: {exc}"}
+
+        models = sorted(
+            item.get("id", "")
+            for item in data.get("data", [])
+            if isinstance(item, dict) and item.get("id")
+        )
+        return {"models": models, "source": "api", "message": f"{len(models)} modelo(s) carregado(s)."}
+
+    return await asyncio.to_thread(call_models)
+
+
+async def maybe_ai_analysis(ai_config: dict[str, str | None], network: str, summary: dict[str, Any], evidence: list[AgentEvidence]) -> dict[str, Any]:
     api_key = (ai_config.get("api_key") or "").strip()
     if not api_key:
-        return local_analysis(summary, evidence)
+        return local_ai_result(local_analysis(summary, evidence), "API key não informada.")
 
     endpoint = (ai_config.get("endpoint") or "https://api.openai.com/v1/chat/completions").strip()
-    model = (ai_config.get("model") or "gpt-4.1-mini").strip()
+    model = (ai_config.get("model") or DEFAULT_AI_MODEL).strip()
     if not endpoint.startswith("https://"):
-        return local_analysis(summary, evidence) + "\n\nObservação: endpoint de IA ignorado porque apenas HTTPS é aceito."
+        return local_ai_result(local_analysis(summary, evidence), "Endpoint de IA ignorado porque apenas HTTPS é aceito.")
     prompt = {
         "network": network,
         "summary": summary,
@@ -527,7 +567,7 @@ async def maybe_ai_analysis(ai_config: dict[str, str | None], network: str, summ
         "temperature": 0.2,
     }
 
-    def call_ai() -> str | None:
+    def call_ai() -> dict[str, Any]:
         request = urllib.request.Request(
             endpoint,
             data=json.dumps(payload).encode("utf-8"),
@@ -537,11 +577,47 @@ async def maybe_ai_analysis(ai_config: dict[str, str | None], network: str, summ
         try:
             with urllib.request.urlopen(request, timeout=25) as response:
                 data = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-            return None
-        return data.get("choices", [{}])[0].get("message", {}).get("content")
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            return local_ai_result(local_analysis(summary, evidence), f"Falha ao chamar IA; fallback local usado: {exc}")
 
-    return await asyncio.to_thread(call_ai) or local_analysis(summary, evidence)
+        content = data.get("choices", [{}])[0].get("message", {}).get("content") or ""
+        usage = data.get("usage") or {}
+        return {
+            "content": content or local_analysis(summary, evidence),
+            "used_api": bool(content),
+            "provider": "openai_compatible",
+            "model": data.get("model") or model,
+            "token_usage": {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            },
+            "fallback_reason": None if content else "Resposta sem conteúdo; análise local usada.",
+        }
+
+    return await asyncio.to_thread(call_ai)
+
+
+def models_endpoint_from_chat_endpoint(endpoint: str) -> str:
+    clean = endpoint.strip().rstrip("/")
+    if clean.endswith("/chat/completions"):
+        return clean[: -len("/chat/completions")] + "/models"
+    if clean.endswith("/responses"):
+        return clean[: -len("/responses")] + "/models"
+    if clean.endswith("/models"):
+        return clean
+    return clean + "/models"
+
+
+def local_ai_result(content: str, reason: str) -> dict[str, Any]:
+    return {
+        "content": content,
+        "used_api": False,
+        "provider": "local",
+        "model": "local-summary",
+        "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        "fallback_reason": reason,
+    }
 
 
 def local_analysis(summary: dict[str, Any], evidence: list[AgentEvidence]) -> str:

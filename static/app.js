@@ -22,6 +22,8 @@ const badAgentTarget = document.querySelector("#badAgentTarget");
 const aiEndpoint = document.querySelector("#aiEndpoint");
 const aiModel = document.querySelector("#aiModel");
 const aiApiKey = document.querySelector("#aiApiKey");
+const loadAiModels = document.querySelector("#loadAiModels");
+const aiModelStatus = document.querySelector("#aiModelStatus");
 const captureRtspFrame = document.querySelector("#captureRtspFrame");
 const badAgentActive = document.querySelector("#badAgentActive");
 const badAgentStatus = document.querySelector("#badAgentStatus");
@@ -59,6 +61,10 @@ scheduleForm.addEventListener("submit", async (event) => {
 badAgentForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await startBadAgent();
+});
+
+loadAiModels.addEventListener("click", async () => {
+  await loadAvailableAiModels();
 });
 
 refreshReports.addEventListener("click", () => {
@@ -171,6 +177,42 @@ async function startBadAgent() {
   streamBadAgent(data.agent_id);
 }
 
+async function loadAvailableAiModels() {
+  aiModelStatus.textContent = "Carregando modelos da API...";
+  const response = await fetch("/api/bad-agent/models", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ai_endpoint: aiEndpoint.value.trim(),
+      ai_api_key: aiApiKey.value.trim() || null,
+    }),
+  });
+
+  if (!response.ok) {
+    aiModelStatus.textContent = "Não foi possível carregar modelos.";
+    return;
+  }
+
+  const data = await response.json();
+  aiModelStatus.textContent = data.message || "Modelos carregados.";
+  if (!data.models || !data.models.length) {
+    return;
+  }
+
+  const current = aiModel.value;
+  aiModel.innerHTML = "";
+  for (const model of data.models) {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = model;
+    option.selected = model === current;
+    aiModel.appendChild(option);
+  }
+  if (!aiModel.value && data.models.includes("gpt-4.1-mini")) {
+    aiModel.value = "gpt-4.1-mini";
+  }
+}
+
 function streamBadAgent(agentId) {
   if (activeBadSource) {
     activeBadSource.close();
@@ -221,6 +263,8 @@ function renderBadAgentReport(report) {
   badAgentReport.className = "report-body";
 
   const evidence = report.evidence || [];
+  const aiAnalysis = normalizeAiAnalysis(report.ai_analysis);
+  const tokens = aiAnalysis.token_usage || {};
   badAgentReport.innerHTML = `
     <div class="report-metrics">
       ${metricCard("Status", summary.overall_status || "ok")}
@@ -246,9 +290,38 @@ function renderBadAgentReport(report) {
 
     <div class="report-section">
       <h3>Análise da IA</h3>
-      <pre class="ai-analysis">${escapeHtml(report.ai_analysis || "Sem análise disponível.")}</pre>
+      <div class="ai-usage">
+        <span>${aiAnalysis.used_api ? "IA usada" : "Análise local"}</span>
+        <span>Modelo: ${escapeHtml(aiAnalysis.model || "-")}</span>
+        <span>Prompt: ${tokens.prompt_tokens || 0}</span>
+        <span>Resposta: ${tokens.completion_tokens || 0}</span>
+        <span>Total: ${tokens.total_tokens || 0}</span>
+      </div>
+      ${aiAnalysis.fallback_reason ? `<p class="ai-note">${escapeHtml(aiAnalysis.fallback_reason)}</p>` : ""}
+      <pre class="ai-analysis">${escapeHtml(aiAnalysis.content || "Sem análise disponível.")}</pre>
     </div>
   `;
+}
+
+function normalizeAiAnalysis(value) {
+  if (value && typeof value === "object") {
+    return {
+      content: value.content || "",
+      used_api: Boolean(value.used_api),
+      provider: value.provider || "unknown",
+      model: value.model || "-",
+      token_usage: value.token_usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      fallback_reason: value.fallback_reason || null,
+    };
+  }
+  return {
+    content: value || "",
+    used_api: false,
+    provider: "legacy",
+    model: "legacy/local",
+    token_usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    fallback_reason: "Relatório antigo ou análise local sem metadados de tokens.",
+  };
 }
 
 function agentEvidenceCard(item) {

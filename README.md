@@ -56,6 +56,8 @@ Safety limits:
 
 The AI fields are optional. When an OpenAI-compatible chat completions endpoint, model, and API key are supplied, the app sends only summarized findings and asks for a defensive remediation-focused explanation. The API key is not saved to disk. If no key is supplied, the app generates a local summary.
 
+The dashboard can load the models available to your API key through the configured OpenAI-compatible endpoint. After an agent run, the result shows whether the API was actually used, which model answered, and the prompt/completion/total token counts returned by the provider. Local fallback analysis shows `0` tokens.
+
 ## Requirements
 
 - Linux
