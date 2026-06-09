@@ -785,6 +785,18 @@ code {
 .port-chip.critical, .port-chip.high { background: #fee2e2; color: #991b1b; }
 .port-chip.medium { background: #fef3c7; color: #92400e; }
 
+.cve-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fde68a;
+  color: #78350f;
+  vertical-align: middle;
+}
+
 .device-links span, .port-list span { color: var(--muted); font-size: 12px; }
 
 /* ── Agent safety ───────────────────────────────────────── */

@@ -26,6 +26,7 @@
           <button type="button" class="tab-button" data-tab="badAgent" data-i18n="tabBadAgent">Bad Agent</button>
           <button type="button" class="tab-button" data-tab="performance" data-i18n="tabPerformance">Performance</button>
           <button type="button" class="tab-button" data-tab="websiteSecurity" data-i18n="tabWebsite">Website Security</button>
+          <button type="button" class="tab-button" data-tab="codeAnalysis" data-i18n="tabCodeAnalysis">Análise de Código</button>
         </nav>
         <div class="lang-switcher" aria-label="Language">
           <button class="lang-btn active" data-lang="pt" title="Português (Brasil)">🇧🇷</button>
@@ -370,6 +371,55 @@
           <div class="status-pill idle" id="websiteReportStatus" data-i18n="statusEmpty">vazio</div>
         </div>
         <div id="websiteReport" class="empty-state" data-i18n="noResultYet">
+          Nenhum resultado ainda.
+        </div>
+      </section>
+    </main>
+
+    <!-- ── Análise de Código (SCA) ──────────────────────── -->
+    <main class="layout tab-view" id="codeAnalysisTab">
+      <section class="panel controls">
+        <h2 data-i18n="tabCodeAnalysis">Análise de Código</h2>
+        <form id="codeAnalysisForm">
+          <label>
+            <span data-i18n="codePath">Caminho do projeto</span>
+            <input id="codeProjectPath" name="codeProjectPath" data-i18n-placeholder="codePathPlaceholder" placeholder="/caminho/projeto ou requirements.txt" autocomplete="off" required />
+          </label>
+          <p class="option-help" data-i18n="codeAnalysisHint">
+            Informe o diretório do projeto ou um arquivo requirements.txt para detectar vulnerabilidades conhecidas nas dependências.
+          </p>
+          <button type="submit" data-i18n="btnAnalyzeCode">Analisar dependências</button>
+        </form>
+      </section>
+
+      <section class="panel live">
+        <div class="panel-head">
+          <div>
+            <h2 data-i18n="codeAnalysisLiveTitle">Análise SCA em tempo real</h2>
+            <p id="codeAnalysisActive" data-i18n="noCodeAnalysisRunning">Nenhuma análise em execução.</p>
+          </div>
+          <div class="status-pill idle" id="codeAnalysisStatus" data-i18n="statusWaiting">aguardando</div>
+        </div>
+
+        <div class="summary-grid">
+          <div><span data-i18n="labelVulns">Vulnerabilidades</span><strong id="codeVulnsCount">0</strong></div>
+          <div><span data-i18n="labelPackages">Pacotes afetados</span><strong id="codePackagesCount">0</strong></div>
+          <div><span data-i18n="labelCritHigh">Críticos/Altos</span><strong id="codeHighCount">0</strong></div>
+          <div><span data-i18n="labelStatus">Status</span><strong id="codeOverallStatus">—</strong></div>
+        </div>
+
+        <div class="console" id="codeAnalysisConsole"></div>
+      </section>
+
+      <section class="panel report-detail">
+        <div class="panel-head">
+          <div>
+            <h2 data-i18n="codeReportTitle">Resultado da Análise SCA</h2>
+            <p id="codeAnalysisSubtitle" data-i18n="codeReportHint">Vulnerabilidades em dependências Python via pip-audit.</p>
+          </div>
+          <div class="status-pill idle" id="codeAnalysisReportStatus" data-i18n="statusEmpty">vazio</div>
+        </div>
+        <div id="codeAnalysisReport" class="empty-state" data-i18n="noResultYet">
           Nenhum resultado ainda.
         </div>
       </section>

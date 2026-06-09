@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from bad_agent import AGENT_MEDIA_DIR, SAFE_TESTS, list_ai_models, run_bad_agent
+from code_analysis import CODE_ANALYSIS_REPORTS_DIR, run_code_analysis
 from network_performance import run_network_performance
 from report_exports import export_report
 from scanner import REPORTS_DIR, ScanError, run_scan, validate_target
@@ -68,6 +69,10 @@ class WebsiteSecurityRequest(BaseModel):
     ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
     ai_model: str | None = "gpt-4.1-mini"
     ai_api_key: str | None = None
+
+
+class CodeAnalysisRequest(BaseModel):
+    project_path: str = Field(..., examples=["/home/user/projeto", "/home/user/projeto/requirements.txt"])
 
 
 # ── State classes ─────────────────────────────────────────────────────────────
@@ -133,6 +138,13 @@ class WebsiteSecurityState(RunState):
         self.url = request.url
 
 
+class CodeAnalysisState(RunState):
+    def __init__(self, analysis_id: str, request: CodeAnalysisRequest) -> None:
+        super().__init__(analysis_id)
+        self.analysis_id = analysis_id
+        self.project_path = request.project_path
+
+
 # ── In-memory registries ──────────────────────────────────────────────────────
 
 scans: dict[str, ScanState] = {}
@@ -140,6 +152,7 @@ schedules: dict[str, ScheduleState] = {}
 bad_agents: dict[str, BadAgentState] = {}
 performance_runs: dict[str, PerformanceState] = {}
 website_runs: dict[str, WebsiteSecurityState] = {}
+code_analysis_runs: dict[str, CodeAnalysisState] = {}
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -165,6 +178,10 @@ def _performance_or_404(analysis_id: str) -> PerformanceState:
 
 def _website_security_or_404(scan_id: str) -> WebsiteSecurityState:
     return _or_404(website_runs, scan_id, "Website Security não encontrado.")
+
+
+def _code_analysis_or_404(analysis_id: str) -> CodeAnalysisState:
+    return _or_404(code_analysis_runs, analysis_id, "Análise de código não encontrada.")
 
 
 async def _event_stream(state: RunState):
@@ -503,6 +520,45 @@ async def get_website_security(scan_id: str) -> dict[str, Any]:
 @app.get("/api/website-security/{scan_id}/events")
 async def website_security_events(scan_id: str) -> StreamingResponse:
     return StreamingResponse(_event_stream(_website_security_or_404(scan_id)), media_type="text/event-stream")
+
+
+# ── Routes: code-analysis ────────────────────────────────────────────────────
+
+
+@app.post("/api/code-analysis")
+async def create_code_analysis(request: CodeAnalysisRequest) -> dict[str, str]:
+    analysis_id = uuid.uuid4().hex[:12]
+    state = CodeAnalysisState(analysis_id, request)
+    code_analysis_runs[analysis_id] = state
+    asyncio.create_task(_run_task(state, run_code_analysis(analysis_id, request.project_path, state.publish)))
+    return {"analysis_id": analysis_id, "events_url": f"/api/code-analysis/{analysis_id}/events"}
+
+
+@app.get("/api/code-analysis/{analysis_id}")
+async def get_code_analysis(analysis_id: str) -> dict[str, Any]:
+    state = _code_analysis_or_404(analysis_id)
+    return {
+        "id": state.analysis_id,
+        "project_path": state.project_path,
+        "status": state.status,
+        "created_at": state.created_at,
+        "events": state.events,
+        "report": state.report,
+        "error": state.error,
+    }
+
+
+@app.get("/api/code-analysis/{analysis_id}/events")
+async def code_analysis_events(analysis_id: str) -> StreamingResponse:
+    return StreamingResponse(_event_stream(_code_analysis_or_404(analysis_id)), media_type="text/event-stream")
+
+
+@app.get("/api/code-analysis/{analysis_id}/report.json")
+async def code_analysis_report_json(analysis_id: str) -> FileResponse:
+    path = CODE_ANALYSIS_REPORTS_DIR / f"{analysis_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Relatório ainda não existe.")
+    return FileResponse(path, media_type="application/json", filename=path.name)
 
 
 # ── Schedule internals ────────────────────────────────────────────────────────

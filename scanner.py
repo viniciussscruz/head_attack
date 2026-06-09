@@ -6,6 +6,8 @@ import socket
 import ssl
 import subprocess
 import time
+import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -57,6 +59,7 @@ class PortResult:
     note: str
     banner: str | None = None
     title: str | None = None
+    cves: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -209,6 +212,8 @@ async def run_scan(
 
     await asyncio.gather(*(scan_one(ip) for ip in alive_hosts))
     results.sort(key=lambda item: int(ipaddress.ip_address(item.ip)))
+
+    await enrich_with_cves(results, emit)
 
     findings = build_findings(results, network)
     summary = build_summary(results, findings, started_ts)
@@ -560,3 +565,94 @@ def serialize_dataclass(value: Any) -> Any:
     if hasattr(value, "__dataclass_fields__"):
         return asdict(value)
     return value
+
+
+# ── CVE enrichment via NVD API ────────────────────────────────────────────────
+
+_cve_cache: dict[str, list[dict]] = {}
+
+_SERVICE_KEYWORDS: dict[str, str] = {
+    "FTP": "FTP server",
+    "SSH": "SSH OpenSSH",
+    "Telnet": "Telnet",
+    "DNS": "DNS BIND",
+    "HTTP": "HTTP Apache nginx web server",
+    "HTTPS": "HTTPS TLS",
+    "NetBIOS": "NetBIOS",
+    "SMB": "SMB Samba",
+    "RTSP": "RTSP",
+    "MQTT": "MQTT broker",
+    "VNC": "VNC",
+    "RDP": "Remote Desktop Protocol Windows",
+    "HTTP-alt": "HTTP web server",
+    "HTTPS-alt": "HTTPS",
+    "JetDirect": "HP JetDirect printer",
+    "IPP": "IPP printer",
+}
+
+
+def _fetch_nvd(keyword: str, max_results: int = 3) -> list[dict]:
+    """Synchronous NVD API v2 call — run via to_thread."""
+    params = urllib.parse.urlencode({"keywordSearch": keyword, "resultsPerPage": max_results})
+    url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?{params}"
+    req = urllib.request.Request(url, headers={"User-Agent": "SecurityNetworkAudit/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:
+        return []
+
+    cves = []
+    for item in data.get("vulnerabilities", [])[:max_results]:
+        cve = item.get("cve", {})
+        cve_id = cve.get("id", "")
+        desc = next(
+            (d["value"] for d in cve.get("descriptions", []) if d.get("lang") == "en"),
+            "",
+        )
+        score, severity = None, "unknown"
+        for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+            entries = cve.get("metrics", {}).get(key, [])
+            if entries:
+                cvss = entries[0].get("cvssData", {})
+                score = cvss.get("baseScore")
+                severity = cvss.get("baseSeverity", "unknown").lower()
+                break
+        if cve_id:
+            cves.append({
+                "id": cve_id,
+                "description": desc[:250],
+                "score": score,
+                "severity": severity,
+                "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+            })
+    return cves
+
+
+async def lookup_cves(service: str) -> list[dict]:
+    if service in _cve_cache:
+        return _cve_cache[service]
+    keyword = _SERVICE_KEYWORDS.get(service)
+    if not keyword:
+        _cve_cache[service] = []
+        return []
+    try:
+        result = await asyncio.wait_for(asyncio.to_thread(_fetch_nvd, keyword), timeout=15)
+    except Exception:
+        result = []
+    _cve_cache[service] = result
+    return result
+
+
+async def enrich_with_cves(results: list[HostResult], emit: Callable[[dict[str, Any]], Any]) -> None:
+    services = {port.service for host in results for port in host.open_ports if port.service in _SERVICE_KEYWORDS}
+    if not services:
+        return
+    await emit_event(emit, "phase", f"Consultando NVD para {len(services)} serviço(s) detectado(s).", {})
+    for i, service in enumerate(services):
+        if i > 0:
+            await asyncio.sleep(6)  # stay safely under NVD rate limit (5 req/30s without API key)
+        await lookup_cves(service)
+    for host in results:
+        for port in host.open_ports:
+            port.cves = _cve_cache.get(port.service, [])

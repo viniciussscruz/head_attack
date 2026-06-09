@@ -70,6 +70,17 @@ const TRANSLATIONS = {
     btnViewPanel: "Ver painel", critHighLabel: "críticos/altos",
     openReportFailed: "Não foi possível abrir este relatório.",
     streamClosed: "Conexão de eventos encerrada.",
+    tabCodeAnalysis: "Análise de Código",
+    codePath: "Caminho do projeto", codePathPlaceholder: "/caminho/projeto ou requirements.txt",
+    codeAnalysisHint: "Informe o diretório do projeto ou um arquivo requirements.txt para detectar vulnerabilidades conhecidas nas dependências.",
+    btnAnalyzeCode: "Analisar dependências",
+    codeAnalysisLiveTitle: "Análise SCA em tempo real", noCodeAnalysisRunning: "Nenhuma análise em execução.",
+    labelVulns: "Vulnerabilidades", labelPackages: "Pacotes afetados",
+    codeReportTitle: "Resultado da Análise SCA",
+    codeReportHint: "Vulnerabilidades em dependências Python via pip-audit.",
+    awaitingCodeAnalysis: "Aguardando resultado da análise SCA.",
+    noVulnsFound: "Nenhuma vulnerabilidade encontrada — dependências limpas.",
+    fixedIn: "Corrigido em", cveIds: "CVEs", advisoryId: "Advisory",
   },
   en: {
     eyebrow: "Defensive network audit",
@@ -125,6 +136,17 @@ const TRANSLATIONS = {
     btnViewPanel: "View panel", critHighLabel: "critical/high",
     openReportFailed: "Could not open this report.",
     streamClosed: "Event stream closed.",
+    tabCodeAnalysis: "Code Analysis",
+    codePath: "Project path", codePathPlaceholder: "/path/to/project or requirements.txt",
+    codeAnalysisHint: "Enter the project directory or a requirements.txt file to detect known vulnerabilities in dependencies.",
+    btnAnalyzeCode: "Analyze dependencies",
+    codeAnalysisLiveTitle: "SCA analysis in real-time", noCodeAnalysisRunning: "No analysis running.",
+    labelVulns: "Vulnerabilities", labelPackages: "Affected packages",
+    codeReportTitle: "SCA Analysis Results",
+    codeReportHint: "Python dependency vulnerabilities via pip-audit.",
+    awaitingCodeAnalysis: "Awaiting SCA analysis result.",
+    noVulnsFound: "No vulnerabilities found — clean dependencies.",
+    fixedIn: "Fixed in", cveIds: "CVEs", advisoryId: "Advisory",
   },
   es: {
     eyebrow: "Auditoría defensiva de red",
@@ -180,6 +202,17 @@ const TRANSLATIONS = {
     btnViewPanel: "Ver panel", critHighLabel: "críticos/altos",
     openReportFailed: "No se pudo abrir este informe.",
     streamClosed: "Conexión de eventos cerrada.",
+    tabCodeAnalysis: "Análisis de Código",
+    codePath: "Ruta del proyecto", codePathPlaceholder: "/ruta/proyecto o requirements.txt",
+    codeAnalysisHint: "Ingrese el directorio del proyecto o un archivo requirements.txt para detectar vulnerabilidades conocidas.",
+    btnAnalyzeCode: "Analizar dependencias",
+    codeAnalysisLiveTitle: "Análisis SCA en tiempo real", noCodeAnalysisRunning: "Ningún análisis en ejecución.",
+    labelVulns: "Vulnerabilidades", labelPackages: "Paquetes afectados",
+    codeReportTitle: "Resultados del Análisis SCA",
+    codeReportHint: "Vulnerabilidades en dependencias Python vía pip-audit.",
+    awaitingCodeAnalysis: "Esperando resultado del análisis SCA.",
+    noVulnsFound: "No se encontraron vulnerabilidades — dependencias limpias.",
+    fixedIn: "Corregido en", cveIds: "CVEs", advisoryId: "Advisory",
   },
   fr: {
     eyebrow: "Audit réseau défensif",
@@ -235,6 +268,17 @@ const TRANSLATIONS = {
     btnViewPanel: "Voir le panneau", critHighLabel: "critiques/hauts",
     openReportFailed: "Impossible d'ouvrir ce rapport.",
     streamClosed: "Flux d'événements fermé.",
+    tabCodeAnalysis: "Analyse de Code",
+    codePath: "Chemin du projet", codePathPlaceholder: "/chemin/projet ou requirements.txt",
+    codeAnalysisHint: "Entrez le répertoire du projet ou un fichier requirements.txt pour détecter les vulnérabilités connues.",
+    btnAnalyzeCode: "Analyser les dépendances",
+    codeAnalysisLiveTitle: "Analyse SCA en temps réel", noCodeAnalysisRunning: "Aucune analyse en cours.",
+    labelVulns: "Vulnérabilités", labelPackages: "Paquets affectés",
+    codeReportTitle: "Résultats de l'Analyse SCA",
+    codeReportHint: "Vulnérabilités des dépendances Python via pip-audit.",
+    awaitingCodeAnalysis: "En attente du résultat de l'analyse SCA.",
+    noVulnsFound: "Aucune vulnérabilité trouvée — dépendances saines.",
+    fixedIn: "Corrigé en", cveIds: "CVEs", advisoryId: "Advisory",
   },
 };
 
@@ -283,6 +327,7 @@ const dashboardTab = qs("#dashboardTab");
 const badAgentTab = qs("#badAgentTab");
 const performanceTab = qs("#performanceTab");
 const websiteSecurityTab = qs("#websiteSecurityTab");
+const codeAnalysisTab = qs("#codeAnalysisTab");
 const badAgentForm = qs("#badAgentForm");
 const badAgentTarget = qs("#badAgentTarget");
 const aiEndpoint = qs("#aiEndpoint");
@@ -343,11 +388,24 @@ const hostsCount = qs("#hostsCount");
 const portsCount = qs("#portsCount");
 const highCount = qs("#highCount");
 const overallStatus = qs("#overallStatus");
+const codeAnalysisForm = qs("#codeAnalysisForm");
+const codeProjectPath = qs("#codeProjectPath");
+const codeAnalysisActive = qs("#codeAnalysisActive");
+const codeAnalysisStatus = qs("#codeAnalysisStatus");
+const codeAnalysisConsole = qs("#codeAnalysisConsole");
+const codeVulnsCount = qs("#codeVulnsCount");
+const codePackagesCount = qs("#codePackagesCount");
+const codeHighCount = qs("#codeHighCount");
+const codeOverallStatus = qs("#codeOverallStatus");
+const codeAnalysisSubtitle = qs("#codeAnalysisSubtitle");
+const codeAnalysisReportStatus = qs("#codeAnalysisReportStatus");
+const codeAnalysisReport = qs("#codeAnalysisReport");
 
 let activeSource = null;
 let activeBadSource = null;
 let activePerformanceSource = null;
 let activeWebsiteSource = null;
+let activeCodeSource = null;
 
 /* ── Severity helpers ───────────────────────────────────── */
 
@@ -370,6 +428,7 @@ function switchTab(tabName) {
   badAgentTab.classList.toggle("active", tabName === "badAgent");
   performanceTab.classList.toggle("active", tabName === "performance");
   websiteSecurityTab.classList.toggle("active", tabName === "websiteSecurity");
+  codeAnalysisTab.classList.toggle("active", tabName === "codeAnalysis");
 }
 
 /* ── Event listeners ────────────────────────────────────── */
@@ -379,6 +438,7 @@ scheduleForm.addEventListener("submit", async (event) => { event.preventDefault(
 badAgentForm.addEventListener("submit", async (event) => { event.preventDefault(); await startBadAgent(); });
 performanceForm.addEventListener("submit", async (event) => { event.preventDefault(); await startPerformanceAnalysis(); });
 websiteSecurityForm.addEventListener("submit", async (event) => { event.preventDefault(); await startWebsiteSecurity(); });
+codeAnalysisForm.addEventListener("submit", async (event) => { event.preventDefault(); await startCodeAnalysis(); });
 loadAiModels.addEventListener("click", async () => { await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus); });
 loadPerfAiModels.addEventListener("click", async () => { await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus); });
 loadWebAiModels.addEventListener("click", async () => { await loadAvailableAiModels(webAiEndpoint, webAiApiKey, webAiModel, webAiModelStatus); });
@@ -612,6 +672,119 @@ function handleWebsiteEvent(payload) {
   if (event === "failed") setWebsiteStatus(t("statusFailed"), "bad");
 }
 
+/* ── Code Analysis (SCA) ────────────────────────────────── */
+
+async function startCodeAnalysis() {
+  resetCodeAnalysis();
+  setCodeAnalysisStatus(t("statusRunning"), "warn");
+
+  const response = await fetch("/api/code-analysis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_path: codeProjectPath.value.trim() }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
+    setCodeAnalysisStatus(t("statusError"), "bad");
+    addCodeLine("erro", error.detail || "Não foi possível iniciar a análise.");
+    return;
+  }
+
+  const data = await response.json();
+  codeAnalysisActive.textContent = `Análise ${data.analysis_id} — ${codeProjectPath.value.trim()}`;
+  streamCodeAnalysis(data.analysis_id);
+}
+
+function streamCodeAnalysis(analysisId) {
+  if (activeCodeSource) activeCodeSource.close();
+  activeCodeSource = openEventStream(
+    `/api/code-analysis/${analysisId}/events`,
+    handleCodeAnalysisEvent,
+    () => addCodeLine("stream", t("streamClosed"))
+  );
+}
+
+function handleCodeAnalysisEvent(payload) {
+  const event = payload.event || "info";
+  addCodeLine(event, payload.message || "");
+
+  if (event === "analysis_done" && payload.data?.summary) {
+    const s = payload.data.summary;
+    codeVulnsCount.textContent = String(s.total_vulnerabilities || 0);
+    codePackagesCount.textContent = String(s.packages_affected || 0);
+    const counts = s.by_severity || {};
+    codeHighCount.textContent = String((counts.critical || 0) + (counts.high || 0));
+    codeOverallStatus.textContent = s.overall_status || "—";
+  }
+
+  if (event === "finished") {
+    renderCodeAnalysisReport(payload.data);
+    setCodeAnalysisStatus(t("statusDone"), statusClass(payload.data.summary?.overall_status));
+  }
+
+  if (event === "failed") setCodeAnalysisStatus(t("statusFailed"), "bad");
+}
+
+function renderCodeAnalysisReport(report) {
+  const summary = report.summary || {};
+  const counts = summary.by_severity || {};
+  const highTotal = (counts.critical || 0) + (counts.high || 0);
+  const vulns = report.vulnerabilities || [];
+
+  codeVulnsCount.textContent = String(summary.total_vulnerabilities || 0);
+  codePackagesCount.textContent = String(summary.packages_affected || 0);
+  codeHighCount.textContent = String(highTotal);
+  codeOverallStatus.textContent = summary.overall_status || "—";
+  codeAnalysisSubtitle.textContent = `${report.project_path} · ${formatDate(report.finished_at)} · ${summary.total_vulnerabilities || 0} vulns`;
+  codeAnalysisReportStatus.textContent = summary.overall_status || "ok";
+  codeAnalysisReportStatus.className = `status-pill ${statusClass(summary.overall_status)}`;
+  codeAnalysisReport.className = "report-body";
+
+  const vulnList = vulns.length
+    ? vulns.map(vulnCard).join("")
+    : `<div class="empty-state">${t("noVulnsFound")}</div>`;
+
+  codeAnalysisReport.innerHTML = `
+    <div class="report-metrics">
+      ${metricCard("Status", summary.overall_status || "ok")}
+      ${metricCard(t("labelVulns"), summary.total_vulnerabilities || 0)}
+      ${metricCard(t("labelPackages"), summary.packages_affected || 0)}
+      ${metricCard(t("labelCritHigh"), highTotal)}
+    </div>
+
+    <div class="export-bar" data-report-type="code-analysis" data-report-id="${escapeHtml(report.id)}">
+      <div><strong>Exportar</strong><span>Baixar relatório em JSON.</span></div>
+      <a href="/api/code-analysis/${escapeHtml(report.id)}/report.json" class="secondary" style="padding:6px 12px;border-radius:6px;text-decoration:none;font-size:13px">JSON</a>
+    </div>
+
+    ${buildSection(t("codeReportTitle"), vulns.length, `
+      ${buildFilterBar(vulns)}
+      <div class="finding-list">${vulnList}</div>
+    `)}
+  `;
+
+  setupInteractivity(codeAnalysisReport);
+}
+
+function vulnCard(vuln) {
+  const sev = vuln.severity || "unknown";
+  const sevDisplay = SEV_LABELS[sev] || sev;
+  const cves = (vuln.cve_ids || []).map((id) => `<a href="https://nvd.nist.gov/vuln/detail/${escapeHtml(id)}" target="_blank" rel="noopener noreferrer">${escapeHtml(id)}</a>`).join(", ");
+  const fix = (vuln.fix_versions || []).length ? `<p><strong>${t("fixedIn")}:</strong> ${escapeHtml(vuln.fix_versions.join(", "))}</p>` : "";
+  return `
+    <article class="finding" data-severity="${escapeHtml(sev)}">
+      <div class="finding-header">
+        <span class="severity ${escapeHtml(sev)}">${escapeHtml(sevDisplay)}</span>
+        <h4>${escapeHtml(vuln.package)} ${escapeHtml(vuln.installed_version)}</h4>
+      </div>
+      <p><strong>${t("advisoryId")}:</strong> <code>${escapeHtml(vuln.advisory_id)}</code>${cves ? ` · <strong>${t("cveIds")}:</strong> ${cves}` : ""}</p>
+      <p>${escapeHtml(vuln.description || "")}</p>
+      ${fix}
+    </article>
+  `;
+}
+
 /* ── AI models ──────────────────────────────────────────── */
 
 async function loadAvailableAiModels(endpointInput, keyInput, modelSelect, statusElement) {
@@ -793,6 +966,8 @@ function renderReport(report) {
         ${hosts.length ? hosts.map(hostCard).join("") : '<div class="empty-state">Nenhum host ativo encontrado.</div>'}
       </div>
     `)}
+
+    ${buildSection("CVEs por serviço (NVD)", cveCount(hosts), buildCveSection(hosts), true)}
 
     ${buildSection("Checklist manual", (report.manual_checklist || []).length, `
       <div class="checklist">${(report.manual_checklist || []).map(checkItem).join("")}</div>
@@ -1274,7 +1449,9 @@ function hostCard(host) {
 }
 
 function portChip(port) {
-  return `<span class="port-chip ${escapeHtml(port.severity)}">${escapeHtml(`${port.port}/${port.service}`)}</span>`;
+  const cveCount = (port.cves || []).length;
+  const cveBadge = cveCount ? ` <span class="cve-badge">${cveCount} CVE${cveCount > 1 ? "s" : ""}</span>` : "";
+  return `<span class="port-chip ${escapeHtml(port.severity)}" title="${escapeHtml(port.note || "")}">${escapeHtml(`${port.port}/${port.service}`)}${cveBadge}</span>`;
 }
 
 function checkItem(item) {
@@ -1284,6 +1461,38 @@ function checkItem(item) {
       <p>${escapeHtml(item.why)}</p>
       <p><strong>Ação:</strong> ${escapeHtml(item.action)}</p>
     </div>
+  `;
+}
+
+function cveCount(hosts) {
+  return hosts.reduce((n, h) => n + (h.open_ports || []).reduce((m, p) => m + (p.cves || []).length, 0), 0);
+}
+
+function buildCveSection(hosts) {
+  const seen = new Map();
+  for (const host of hosts) {
+    for (const port of host.open_ports || []) {
+      for (const cve of port.cves || []) {
+        if (!seen.has(cve.id)) seen.set(cve.id, { ...cve, service: port.service });
+      }
+    }
+  }
+  if (!seen.size) return '<div class="empty-state">Nenhuma CVE retornada pelo NVD para os serviços detectados.</div>';
+  return `<div class="finding-list">${[...seen.values()].map(cveCard).join("")}</div>`;
+}
+
+function cveCard(cve) {
+  const sev = cve.severity || "unknown";
+  const score = cve.score != null ? ` · Score: ${cve.score}` : "";
+  return `
+    <article class="finding" data-severity="${escapeHtml(sev)}">
+      <div class="finding-header">
+        <span class="severity ${escapeHtml(sev)}">${(SEV_LABELS[sev] || sev).toUpperCase()}</span>
+        <h4>${escapeHtml(cve.id)} · ${escapeHtml(cve.service)}</h4>
+      </div>
+      <p>${escapeHtml(cve.description || "")}${score}</p>
+      <div class="device-links"><a href="${escapeHtml(cve.url)}" target="_blank" rel="noopener noreferrer">Ver no NVD</a></div>
+    </article>
   `;
 }
 
@@ -1336,6 +1545,7 @@ function setStatus(text, cls) { scanStatus.textContent = text; scanStatus.classN
 function setBadStatus(text, cls) { badAgentStatus.textContent = text; badAgentStatus.className = `status-pill ${cls || "idle"}`; }
 function setPerformanceStatus(text, cls) { performanceStatus.textContent = text; performanceStatus.className = `status-pill ${cls || "idle"}`; }
 function setWebsiteStatus(text, cls) { websiteStatus.textContent = text; websiteStatus.className = `status-pill ${cls || "idle"}`; }
+function setCodeAnalysisStatus(text, cls) { codeAnalysisStatus.textContent = text; codeAnalysisStatus.className = `status-pill ${cls || "idle"}`; }
 
 function statusClass(status) {
   if (status === "critical" || status === "attention") return "bad";
@@ -1386,6 +1596,17 @@ function resetWebsiteSecurity() {
   websiteReportStatus.textContent = t("statusRunning");
 }
 
+function resetCodeAnalysis() {
+  codeAnalysisConsole.innerHTML = "";
+  codeVulnsCount.textContent = "0";
+  codePackagesCount.textContent = "0";
+  codeHighCount.textContent = "0";
+  codeOverallStatus.textContent = "—";
+  codeAnalysisReport.className = "empty-state";
+  codeAnalysisReport.textContent = t("awaitingCodeAnalysis");
+  codeAnalysisReportStatus.textContent = t("statusRunning");
+}
+
 /* ── Console lines ──────────────────────────────────────── */
 
 function addConsoleLine(targetEl, kind, message) {
@@ -1401,6 +1622,7 @@ function addLine(kind, message) { addConsoleLine(consoleEl, kind, message); }
 function addBadLine(kind, message) { addConsoleLine(badAgentConsole, kind, message); }
 function addPerformanceLine(kind, message) { addConsoleLine(performanceConsole, kind, message); }
 function addWebsiteLine(kind, message) { addConsoleLine(websiteConsole, kind, message); }
+function addCodeLine(kind, message) { addConsoleLine(codeAnalysisConsole, kind, message); }
 
 /* ── Misc utils ─────────────────────────────────────────── */
 
