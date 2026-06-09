@@ -230,11 +230,11 @@ function renderBadAgentReport(report) {
     </div>
 
     <div class="agent-safety">
-      <strong>Modo seguro ativo</strong>
-      <span>Sem brute force</span>
-      <span>Sem exploit</span>
-      <span>Sem tentativa de senha padrão</span>
-      <span>Frame RTSP só com opt-in</span>
+      <strong>Testes executados com limites de segurança</strong>
+      <span>Não tentou senhas</span>
+      <span>Não executou exploit</span>
+      <span>Não acionou reset/reboot</span>
+      <span>Frame RTSP só quando marcado</span>
     </div>
 
     <div class="report-section">

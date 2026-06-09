@@ -199,6 +199,13 @@ button.secondary:hover {
   background: #fbfcfe;
 }
 
+.option-help {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .danger-check {
   align-items: flex-start;
   padding: 10px;
