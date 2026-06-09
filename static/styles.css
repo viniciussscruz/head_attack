@@ -257,8 +257,42 @@ p { margin-top: 0; }
   top: 68px;
 }
 
-.live, .reports, .report-detail { min-width: 0; }
-.reports, .report-detail { grid-column: 2; }
+.live, .reports, .report-detail, .device-results { min-width: 0; }
+.reports, .report-detail, .device-results { grid-column: 2; }
+
+/* ── Device table ───────────────────────────────────────── */
+
+.device-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.device-table th {
+  text-align: left;
+  padding: 7px 10px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+.device-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.device-table tr:last-child td { border-bottom: none; }
+.device-table tr:hover td { background: var(--bg); }
+.device-table .mac-cell { font-family: monospace; font-size: 12px; color: var(--muted); }
+.device-table .vendor-cell { color: var(--accent-dark); font-weight: 600; }
+.device-table .no-vendor { color: var(--muted); font-style: italic; }
+.device-table .ip-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+.device-table .ip-link:hover { text-decoration: underline; }
+.device-summary { display: flex; gap: 18px; padding: 10px 0 14px; flex-wrap: wrap; }
+.device-summary span { font-size: 13px; color: var(--muted); }
+.device-summary strong { color: var(--text); }
 
 /* ── Forms ──────────────────────────────────────────────── */
 

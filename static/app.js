@@ -18,7 +18,7 @@ function openEventStream(url, onMessage, onError) {
 const TRANSLATIONS = {
   pt: {
     eyebrow: "Auditoria defensiva de rede",
-    tabDashboard: "Dashboard", tabBadAgent: "Bad Agent", tabPerformance: "Performance", tabWebsite: "Website Security",
+    tabDashboard: "Check de Rede", tabBadAgent: "Bad Agent", tabPerformance: "Performance", tabWebsite: "Website Security",
     newTest: "Novo teste", authorizedNetwork: "Rede autorizada", profile: "Perfil",
     profileQuick: "Rápido e leve", profileFull: "Completo controlado",
     btnRun: "Rodar agora", btnRefresh: "Atualizar",
@@ -70,6 +70,14 @@ const TRANSLATIONS = {
     btnViewPanel: "Ver painel", critHighLabel: "críticos/altos",
     openReportFailed: "Não foi possível abrir este relatório.",
     streamClosed: "Conexão de eventos encerrada.",
+    deviceScanTitle: "Dispositivos na Rede",
+    btnScanDevices: "Escanear dispositivos",
+    deviceReportTitle: "Dispositivos descobertos",
+    deviceReportHint: "MAC address e fabricante de cada dispositivo na rede.",
+    colIp: "IP", colHostname: "Hostname", colMac: "MAC", colVendor: "Fabricante", colLatency: "Latência",
+    noMac: "Sem MAC", noVendor: "Desconhecido", noHostname: "—",
+    deviceSummaryTotal: "dispositivos", deviceSummaryMac: "com MAC", deviceSummaryVendor: "com fabricante",
+    awaitingDeviceScan: "Aguardando varredura de dispositivos.",
     tabCodeAnalysis: "Análise de Código",
     codePath: "Caminho do projeto", codePathPlaceholder: "/caminho/projeto ou requirements.txt",
     codeAnalysisHint: "Informe o diretório do projeto ou um arquivo requirements.txt para detectar vulnerabilidades conhecidas nas dependências.",
@@ -142,6 +150,14 @@ const TRANSLATIONS = {
     btnViewPanel: "View panel", critHighLabel: "critical/high",
     openReportFailed: "Could not open this report.",
     streamClosed: "Event stream closed.",
+    deviceScanTitle: "Network Devices",
+    btnScanDevices: "Scan devices",
+    deviceReportTitle: "Discovered devices",
+    deviceReportHint: "MAC address and manufacturer of each device on the network.",
+    colIp: "IP", colHostname: "Hostname", colMac: "MAC", colVendor: "Manufacturer", colLatency: "Latency",
+    noMac: "No MAC", noVendor: "Unknown", noHostname: "—",
+    deviceSummaryTotal: "devices", deviceSummaryMac: "with MAC", deviceSummaryVendor: "with manufacturer",
+    awaitingDeviceScan: "Awaiting device scan.",
     tabCodeAnalysis: "Code Analysis",
     codePath: "Project path", codePathPlaceholder: "/path/to/project or requirements.txt",
     codeAnalysisHint: "Enter the project directory or a requirements.txt file to detect known vulnerabilities in dependencies.",
@@ -214,6 +230,14 @@ const TRANSLATIONS = {
     btnViewPanel: "Ver panel", critHighLabel: "críticos/altos",
     openReportFailed: "No se pudo abrir este informe.",
     streamClosed: "Conexión de eventos cerrada.",
+    deviceScanTitle: "Dispositivos en la Red",
+    btnScanDevices: "Escanear dispositivos",
+    deviceReportTitle: "Dispositivos descubiertos",
+    deviceReportHint: "Dirección MAC y fabricante de cada dispositivo en la red.",
+    colIp: "IP", colHostname: "Hostname", colMac: "MAC", colVendor: "Fabricante", colLatency: "Latencia",
+    noMac: "Sin MAC", noVendor: "Desconocido", noHostname: "—",
+    deviceSummaryTotal: "dispositivos", deviceSummaryMac: "con MAC", deviceSummaryVendor: "con fabricante",
+    awaitingDeviceScan: "Esperando escaneo de dispositivos.",
     tabCodeAnalysis: "Análisis de Código",
     codePath: "Ruta del proyecto", codePathPlaceholder: "/ruta/proyecto o requirements.txt",
     codeAnalysisHint: "Ingrese el directorio del proyecto o un archivo requirements.txt para detectar vulnerabilidades conocidas.",
@@ -286,6 +310,14 @@ const TRANSLATIONS = {
     btnViewPanel: "Voir le panneau", critHighLabel: "critiques/hauts",
     openReportFailed: "Impossible d'ouvrir ce rapport.",
     streamClosed: "Flux d'événements fermé.",
+    deviceScanTitle: "Appareils du Réseau",
+    btnScanDevices: "Scanner les appareils",
+    deviceReportTitle: "Appareils découverts",
+    deviceReportHint: "Adresse MAC et fabricant de chaque appareil sur le réseau.",
+    colIp: "IP", colHostname: "Hostname", colMac: "MAC", colVendor: "Fabricant", colLatency: "Latence",
+    noMac: "Sans MAC", noVendor: "Inconnu", noHostname: "—",
+    deviceSummaryTotal: "appareils", deviceSummaryMac: "avec MAC", deviceSummaryVendor: "avec fabricant",
+    awaitingDeviceScan: "En attente du scan des appareils.",
     tabCodeAnalysis: "Analyse de Code",
     codePath: "Chemin du projet", codePathPlaceholder: "/chemin/projet ou requirements.txt",
     codeAnalysisHint: "Entrez le répertoire du projet ou un fichier requirements.txt pour détecter les vulnérabilités connues.",
@@ -438,11 +470,22 @@ const codeAiApiKey = qs("#codeAiApiKey");
 const loadCodeAiModels = qs("#loadCodeAiModels");
 const codeAiModelStatus = qs("#codeAiModelStatus");
 
+const deviceScanForm = qs("#deviceScanForm");
+const deviceTarget = qs("#deviceTarget");
+const deviceScanStatus = qs("#deviceScanStatus");
+const deviceScanInfo = qs("#deviceScanInfo");
+const deviceConsole = qs("#deviceConsole");
+const deviceResultsPanel = qs("#deviceResultsPanel");
+const deviceResultsSubtitle = qs("#deviceResultsSubtitle");
+const deviceResultsStatus = qs("#deviceResultsStatus");
+const deviceTable = qs("#deviceTable");
+
 let activeSource = null;
 let activeBadSource = null;
 let activePerformanceSource = null;
 let activeWebsiteSource = null;
 let activeCodeSource = null;
+let activeDeviceScanSource = null;
 
 /* ── Severity helpers ───────────────────────────────────── */
 
@@ -476,6 +519,7 @@ badAgentForm.addEventListener("submit", async (event) => { event.preventDefault(
 performanceForm.addEventListener("submit", async (event) => { event.preventDefault(); await startPerformanceAnalysis(); });
 websiteSecurityForm.addEventListener("submit", async (event) => { event.preventDefault(); await startWebsiteSecurity(); });
 codeAnalysisForm.addEventListener("submit", async (event) => { event.preventDefault(); await startCodeAnalysis(); });
+deviceScanForm.addEventListener("submit", async (event) => { event.preventDefault(); await startDeviceScan(); });
 loadAiModels.addEventListener("click", async () => { await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus); });
 loadPerfAiModels.addEventListener("click", async () => { await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus); });
 loadWebAiModels.addEventListener("click", async () => { await loadAvailableAiModels(webAiEndpoint, webAiApiKey, webAiModel, webAiModelStatus); });
@@ -846,6 +890,130 @@ function vulnCard(vuln) {
     </article>
   `;
 }
+
+/* ── Device Scanner ─────────────────────────────────────── */
+
+async function startDeviceScan() {
+  resetDeviceScan();
+  setDeviceScanStatus(t("statusRunning"), "warn");
+
+  const response = await fetch("/api/device-scan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target: deviceTarget.value.trim() }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Erro desconhecido" }));
+    setDeviceScanStatus(t("statusError"), "bad");
+    addDeviceLine("erro", error.detail || "Não foi possível iniciar a varredura.");
+    return;
+  }
+
+  const data = await response.json();
+  deviceScanInfo.textContent = `Scan ${data.scan_id} · ${deviceTarget.value.trim()}`;
+  streamDeviceScan(data.scan_id);
+}
+
+function streamDeviceScan(scanId) {
+  if (activeDeviceScanSource) activeDeviceScanSource.close();
+  activeDeviceScanSource = openEventStream(
+    `/api/device-scan/${scanId}/events`,
+    handleDeviceScanEvent,
+    () => addDeviceLine("stream", t("streamClosed"))
+  );
+}
+
+function handleDeviceScanEvent(payload) {
+  const event = payload.event || "info";
+  addDeviceLine(event, payload.message || "");
+
+  if (event === "discovered" || event === "finished") {
+    const report = payload.data;
+    renderDeviceTable(report);
+    if (event === "finished") {
+      setDeviceScanStatus(t("statusDone"), "ok");
+    }
+  }
+
+  if (event === "failed") setDeviceScanStatus(t("statusFailed"), "bad");
+}
+
+function renderDeviceTable(report) {
+  const devices = report.devices || [];
+  const summary = report.summary || {};
+
+  deviceResultsSubtitle.textContent = `${report.target} · ${formatDate(report.finished_at || report.started_at)}`;
+  deviceResultsStatus.textContent = `${summary.total_devices || devices.length} dispositivos`;
+  deviceResultsStatus.className = "status-pill ok";
+
+  if (!devices.length) {
+    deviceTable.className = "empty-state";
+    deviceTable.textContent = t("noVulnsFound");
+    return;
+  }
+
+  deviceTable.className = "";
+  deviceTable.innerHTML = `
+    <div class="device-summary">
+      <span><strong>${summary.total_devices || devices.length}</strong> ${t("deviceSummaryTotal")}</span>
+      <span><strong>${summary.with_mac || 0}</strong> ${t("deviceSummaryMac")}</span>
+      <span><strong>${summary.with_vendor || 0}</strong> ${t("deviceSummaryVendor")}</span>
+    </div>
+    <table class="device-table">
+      <thead>
+        <tr>
+          <th>${t("colIp")}</th>
+          <th>${t("colHostname")}</th>
+          <th>${t("colMac")}</th>
+          <th>${t("colVendor")}</th>
+          <th>${t("colLatency")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${devices.map(deviceRow).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function deviceRow(device) {
+  const ip = device.ip || "—";
+  const hostname = escapeHtml(device.hostname || t("noHostname"));
+  const macHtml = device.mac
+    ? `<span class="mac-cell">${escapeHtml(device.mac)}</span>`
+    : `<span class="no-vendor">${escapeHtml(t("noMac"))}</span>`;
+  const vendorHtml = device.vendor
+    ? `<span class="vendor-cell">${escapeHtml(device.vendor)}</span>`
+    : `<span class="no-vendor">${escapeHtml(t("noVendor"))}</span>`;
+  const latency = device.latency_ms != null ? `${device.latency_ms} ms` : "—";
+  const ipCell = `<a class="ip-link" href="http://${escapeHtml(ip)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ip)}</a>`;
+  return `
+    <tr>
+      <td>${ipCell}</td>
+      <td>${hostname}</td>
+      <td>${macHtml}</td>
+      <td>${vendorHtml}</td>
+      <td>${escapeHtml(latency)}</td>
+    </tr>
+  `;
+}
+
+function resetDeviceScan() {
+  deviceConsole.innerHTML = "";
+  deviceTable.className = "empty-state";
+  deviceTable.textContent = t("awaitingDeviceScan");
+  deviceResultsStatus.textContent = t("statusRunning");
+  deviceResultsStatus.className = "status-pill warn";
+  deviceScanInfo.textContent = "";
+}
+
+function setDeviceScanStatus(text, cls) {
+  deviceScanStatus.textContent = text;
+  deviceScanStatus.className = `status-pill ${cls || "idle"}`;
+}
+
+function addDeviceLine(kind, message) { addConsoleLine(deviceConsole, kind, message); }
 
 /* ── AI models ──────────────────────────────────────────── */
 

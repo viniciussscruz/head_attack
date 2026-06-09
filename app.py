@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from bad_agent import AGENT_MEDIA_DIR, SAFE_TESTS, list_ai_models, run_bad_agent
 from code_analysis import CODE_ANALYSIS_REPORTS_DIR, run_code_analysis
+from device_scanner import run_device_scan
 from network_performance import run_network_performance
 from report_exports import export_report
 from scanner import REPORTS_DIR, ScanError, run_scan, validate_target
@@ -69,6 +70,10 @@ class WebsiteSecurityRequest(BaseModel):
     ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
     ai_model: str | None = "gpt-4.1-mini"
     ai_api_key: str | None = None
+
+
+class DeviceScanRequest(BaseModel):
+    target: str = Field(..., examples=["192.168.15.0/24"])
 
 
 class CodeAnalysisRequest(BaseModel):
@@ -141,6 +146,13 @@ class WebsiteSecurityState(RunState):
         self.url = request.url
 
 
+class DeviceScanState(RunState):
+    def __init__(self, scan_id: str, request: DeviceScanRequest) -> None:
+        super().__init__(scan_id)
+        self.scan_id = scan_id
+        self.target = request.target
+
+
 class CodeAnalysisState(RunState):
     def __init__(self, analysis_id: str, request: CodeAnalysisRequest) -> None:
         super().__init__(analysis_id)
@@ -155,6 +167,7 @@ schedules: dict[str, ScheduleState] = {}
 bad_agents: dict[str, BadAgentState] = {}
 performance_runs: dict[str, PerformanceState] = {}
 website_runs: dict[str, WebsiteSecurityState] = {}
+device_scan_runs: dict[str, DeviceScanState] = {}
 code_analysis_runs: dict[str, CodeAnalysisState] = {}
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -181,6 +194,10 @@ def _performance_or_404(analysis_id: str) -> PerformanceState:
 
 def _website_security_or_404(scan_id: str) -> WebsiteSecurityState:
     return _or_404(website_runs, scan_id, "Website Security não encontrado.")
+
+
+def _device_scan_or_404(scan_id: str) -> DeviceScanState:
+    return _or_404(device_scan_runs, scan_id, "Varredura de dispositivos não encontrada.")
 
 
 def _code_analysis_or_404(analysis_id: str) -> CodeAnalysisState:
@@ -523,6 +540,41 @@ async def get_website_security(scan_id: str) -> dict[str, Any]:
 @app.get("/api/website-security/{scan_id}/events")
 async def website_security_events(scan_id: str) -> StreamingResponse:
     return StreamingResponse(_event_stream(_website_security_or_404(scan_id)), media_type="text/event-stream")
+
+
+# ── Routes: device-scan ──────────────────────────────────────────────────────
+
+
+@app.post("/api/device-scan")
+async def create_device_scan(request: DeviceScanRequest) -> dict[str, str]:
+    try:
+        validate_target(request.target)
+    except ScanError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    scan_id = uuid.uuid4().hex[:12]
+    state = DeviceScanState(scan_id, request)
+    device_scan_runs[scan_id] = state
+    asyncio.create_task(_run_task(state, run_device_scan(scan_id, request.target, state.publish)))
+    return {"scan_id": scan_id, "events_url": f"/api/device-scan/{scan_id}/events"}
+
+
+@app.get("/api/device-scan/{scan_id}")
+async def get_device_scan(scan_id: str) -> dict[str, Any]:
+    state = _device_scan_or_404(scan_id)
+    return {
+        "id": state.scan_id,
+        "target": state.target,
+        "status": state.status,
+        "created_at": state.created_at,
+        "events": state.events,
+        "report": state.report,
+        "error": state.error,
+    }
+
+
+@app.get("/api/device-scan/{scan_id}/events")
+async def device_scan_events(scan_id: str) -> StreamingResponse:
+    return StreamingResponse(_event_stream(_device_scan_or_404(scan_id)), media_type="text/event-stream")
 
 
 # ── Routes: code-analysis ────────────────────────────────────────────────────
