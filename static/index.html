@@ -28,6 +28,7 @@
           <button type="button" class="tab-button" data-tab="websiteSecurity" data-i18n="tabWebsite">Website Security</button>
           <button type="button" class="tab-button" data-tab="codeAnalysis" data-i18n="tabCodeAnalysis">Análise de Código</button>
         </nav>
+        <button type="button" class="icon-btn" id="settingsToggle" title="Configuração da IA" aria-label="Configuração da IA">⚙</button>
         <div class="lang-switcher" aria-label="Language">
           <button class="lang-btn active" data-lang="pt" title="Português (Brasil)">🇧🇷</button>
           <button class="lang-btn" data-lang="en" title="English (US)">🇺🇸</button>
@@ -37,6 +38,35 @@
         <div class="status-pill" id="serviceStatus">online</div>
       </div>
     </header>
+
+    <!-- ── AI Settings Drawer ──────────────────────────── -->
+    <div class="settings-drawer" id="settingsDrawer" hidden>
+      <div class="settings-inner">
+        <div class="settings-head">
+          <span data-i18n="settingsTitle">Configuração global da IA</span>
+          <p class="settings-hint" data-i18n="aiGlobalHint">Salva no navegador. Preenche todos os campos de IA automaticamente.</p>
+        </div>
+        <div class="settings-fields">
+          <label>
+            <span data-i18n="aiEndpoint">Endpoint da IA</span>
+            <input id="globalAiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
+          </label>
+          <label>
+            <span data-i18n="aiModel">Modelo</span>
+            <input id="globalAiModel" value="gpt-4.1-mini" autocomplete="off" />
+          </label>
+          <label>
+            <span data-i18n="aiApiKey">API key da IA</span>
+            <input id="globalAiKey" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Opcional — não é salva no servidor" autocomplete="off" />
+          </label>
+        </div>
+        <div class="settings-actions">
+          <button type="button" id="saveAiConfig" data-i18n="aiSaveConfig">Salvar configuração</button>
+          <button type="button" id="deleteAiConfig" class="danger" data-i18n="aiDeleteConfig">Deletar configuração</button>
+        </div>
+        <p class="settings-status" id="settingsStatus"></p>
+      </div>
+    </div>
 
     <!-- ── Dashboard ─────────────────────────────────── -->
     <main class="layout tab-view active" id="dashboardTab">
@@ -388,6 +418,26 @@
           <p class="option-help" data-i18n="codeAnalysisHint">
             Informe o diretório do projeto ou um arquivo requirements.txt para detectar vulnerabilidades conhecidas nas dependências.
           </p>
+
+          <div class="divider"></div>
+
+          <label>
+            <span data-i18n="aiEndpoint">Endpoint da IA</span>
+            <input id="codeAiEndpoint" value="https://api.openai.com/v1/chat/completions" autocomplete="off" />
+          </label>
+          <label>
+            <span data-i18n="aiModel">Modelo</span>
+            <select id="codeAiModel">
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            </select>
+          </label>
+          <label>
+            <span data-i18n="aiApiKey">API key da IA</span>
+            <input id="codeAiApiKey" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="Opcional — não é salva" autocomplete="off" />
+          </label>
+          <button type="button" class="secondary" id="loadCodeAiModels" data-i18n="btnLoadModels">Carregar modelos disponíveis</button>
+          <p class="model-status" id="codeAiModelStatus" data-i18n="enterKeyHint">Informe a API key para carregar modelos.</p>
+
           <button type="submit" data-i18n="btnAnalyzeCode">Analisar dependências</button>
         </form>
       </section>

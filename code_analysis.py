@@ -1,9 +1,12 @@
 import asyncio
 import json
 import subprocess
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
+from bad_agent import DEFAULT_AI_MODEL, local_ai_result
 from utils import emit_event, save_json_report, utc_now
 
 CODE_ANALYSIS_REPORTS_DIR = Path("reports/code_analysis")
@@ -13,6 +16,7 @@ async def run_code_analysis(
     analysis_id: str,
     project_path: str,
     emit: Callable[[dict[str, Any]], Any],
+    ai_config: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     started = utc_now()
     await emit_event(emit, "started", f"Análise SCA iniciada: {project_path}", {"analysis_id": analysis_id})
@@ -100,6 +104,10 @@ async def run_code_analysis(
         {"summary": summary},
     )
 
+    if ai_config and vulnerabilities:
+        await emit_event(emit, "phase", "Consultando IA para análise de risco...", {})
+    ai_analysis = await maybe_code_ai(ai_config or {}, vulnerabilities, summary)
+
     report = {
         "id": analysis_id,
         "type": "code_analysis",
@@ -108,11 +116,91 @@ async def run_code_analysis(
         "finished_at": utc_now(),
         "summary": summary,
         "vulnerabilities": vulnerabilities,
+        "ai_analysis": ai_analysis,
     }
 
     _save_report(analysis_id, report)
     await emit_event(emit, "finished", "Análise concluída e relatório salvo.", report)
     return report
+
+
+async def maybe_code_ai(
+    ai_config: dict[str, str | None],
+    vulnerabilities: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    api_key = (ai_config.get("api_key") or "").strip()
+    if not api_key:
+        return local_ai_result(_local_code_analysis(summary, vulnerabilities), "API key não informada.")
+
+    endpoint = (ai_config.get("endpoint") or "https://api.openai.com/v1/chat/completions").strip()
+    model = (ai_config.get("model") or DEFAULT_AI_MODEL).strip()
+
+    if not endpoint.startswith("https://"):
+        return local_ai_result(_local_code_analysis(summary, vulnerabilities), "Endpoint ignorado: apenas HTTPS aceito.")
+
+    prompt = {
+        "summary": summary,
+        "vulnerabilities": vulnerabilities[:30],
+        "instruction": (
+            "Write a concise Portuguese defensive security report for these Python dependency vulnerabilities. "
+            "Explain business risk, severity rationale, and prioritized remediation steps. "
+            "Do not provide exploit instructions."
+        ),
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a defensive application security analyst specializing in software composition analysis (SCA). Keep advice remediation-focused."},
+            {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
+        ],
+        "temperature": 0.2,
+    }
+
+    def _call() -> dict[str, Any]:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            return local_ai_result(_local_code_analysis(summary, vulnerabilities), f"Falha ao chamar IA; análise local usada: {exc}")
+        content = data.get("choices", [{}])[0].get("message", {}).get("content") or ""
+        usage = data.get("usage") or {}
+        return {
+            "content": content or _local_code_analysis(summary, vulnerabilities),
+            "used_api": bool(content),
+            "provider": "openai_compatible",
+            "model": data.get("model") or model,
+            "token_usage": {
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            },
+            "fallback_reason": None if content else "Resposta sem conteúdo; análise local usada.",
+        }
+
+    return await asyncio.to_thread(_call)
+
+
+def _local_code_analysis(summary: dict[str, Any], vulnerabilities: list[dict[str, Any]]) -> str:
+    lines = [
+        f"Análise local SCA: {summary['total_vulnerabilities']} vulnerabilidade(s) em {summary['packages_affected']} pacote(s).",
+        f"Status geral: {summary['overall_status']}.",
+    ]
+    by_sev = summary.get("by_severity", {})
+    if by_sev.get("critical"):
+        lines.append(f"CRÍTICO: {by_sev['critical']} vulnerabilidade(s) — atualização urgente necessária.")
+    if by_sev.get("high"):
+        lines.append(f"ALTO: {by_sev['high']} vulnerabilidade(s) — prioridade alta de correção.")
+    for v in vulnerabilities[:5]:
+        fix = f" → corrigido em {v['fix_versions'][0]}" if v.get("fix_versions") else ""
+        lines.append(f"- {v['package']} {v['installed_version']}: {v['advisory_id']}{fix}")
+    return "\n".join(lines)
 
 
 def _infer_severity(vuln: dict[str, Any]) -> str:

@@ -73,6 +73,9 @@ class WebsiteSecurityRequest(BaseModel):
 
 class CodeAnalysisRequest(BaseModel):
     project_path: str = Field(..., examples=["/home/user/projeto", "/home/user/projeto/requirements.txt"])
+    ai_endpoint: str | None = "https://api.openai.com/v1/chat/completions"
+    ai_model: str | None = "gpt-4.1-mini"
+    ai_api_key: str | None = None
 
 
 # ── State classes ─────────────────────────────────────────────────────────────
@@ -220,7 +223,7 @@ def _sse(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _ai_config(request: BadAgentRequest | PerformanceRequest | WebsiteSecurityRequest) -> dict[str, str | None]:
+def _ai_config(request: BadAgentRequest | PerformanceRequest | WebsiteSecurityRequest | CodeAnalysisRequest) -> dict[str, str | None]:
     return {"endpoint": request.ai_endpoint, "model": request.ai_model, "api_key": request.ai_api_key}
 
 
@@ -530,7 +533,7 @@ async def create_code_analysis(request: CodeAnalysisRequest) -> dict[str, str]:
     analysis_id = uuid.uuid4().hex[:12]
     state = CodeAnalysisState(analysis_id, request)
     code_analysis_runs[analysis_id] = state
-    asyncio.create_task(_run_task(state, run_code_analysis(analysis_id, request.project_path, state.publish)))
+    asyncio.create_task(_run_task(state, run_code_analysis(analysis_id, request.project_path, state.publish, _ai_config(request))))
     return {"analysis_id": analysis_id, "events_url": f"/api/code-analysis/{analysis_id}/events"}
 
 
