@@ -81,6 +81,12 @@ const TRANSLATIONS = {
     awaitingCodeAnalysis: "Aguardando resultado da análise SCA.",
     noVulnsFound: "Nenhuma vulnerabilidade encontrada — dependências limpas.",
     fixedIn: "Corrigido em", cveIds: "CVEs", advisoryId: "Advisory",
+    settingsTitle: "Configuração global da IA",
+    aiGlobalHint: "Salva no navegador. Preenche todos os campos de IA automaticamente.",
+    aiSaveConfig: "Salvar configuração",
+    aiDeleteConfig: "Deletar configuração",
+    aiConfigSaved: "Configuração salva e campos atualizados.",
+    aiConfigDeleted: "Configuração da IA removida.",
   },
   en: {
     eyebrow: "Defensive network audit",
@@ -147,6 +153,12 @@ const TRANSLATIONS = {
     awaitingCodeAnalysis: "Awaiting SCA analysis result.",
     noVulnsFound: "No vulnerabilities found — clean dependencies.",
     fixedIn: "Fixed in", cveIds: "CVEs", advisoryId: "Advisory",
+    settingsTitle: "Global AI Configuration",
+    aiGlobalHint: "Saved in browser. Automatically fills all AI fields.",
+    aiSaveConfig: "Save configuration",
+    aiDeleteConfig: "Delete configuration",
+    aiConfigSaved: "Configuration saved and fields updated.",
+    aiConfigDeleted: "AI configuration removed.",
   },
   es: {
     eyebrow: "Auditoría defensiva de red",
@@ -213,6 +225,12 @@ const TRANSLATIONS = {
     awaitingCodeAnalysis: "Esperando resultado del análisis SCA.",
     noVulnsFound: "No se encontraron vulnerabilidades — dependencias limpias.",
     fixedIn: "Corregido en", cveIds: "CVEs", advisoryId: "Advisory",
+    settingsTitle: "Configuración global de IA",
+    aiGlobalHint: "Guardado en el navegador. Rellena todos los campos de IA automáticamente.",
+    aiSaveConfig: "Guardar configuración",
+    aiDeleteConfig: "Eliminar configuración",
+    aiConfigSaved: "Configuración guardada y campos actualizados.",
+    aiConfigDeleted: "Configuración de IA eliminada.",
   },
   fr: {
     eyebrow: "Audit réseau défensif",
@@ -279,6 +297,12 @@ const TRANSLATIONS = {
     awaitingCodeAnalysis: "En attente du résultat de l'analyse SCA.",
     noVulnsFound: "Aucune vulnérabilité trouvée — dépendances saines.",
     fixedIn: "Corrigé en", cveIds: "CVEs", advisoryId: "Advisory",
+    settingsTitle: "Configuration globale IA",
+    aiGlobalHint: "Sauvegardé dans le navigateur. Remplit automatiquement tous les champs IA.",
+    aiSaveConfig: "Enregistrer la configuration",
+    aiDeleteConfig: "Supprimer la configuration",
+    aiConfigSaved: "Configuration enregistrée et champs mis à jour.",
+    aiConfigDeleted: "Configuration IA supprimée.",
   },
 };
 
@@ -388,6 +412,14 @@ const hostsCount = qs("#hostsCount");
 const portsCount = qs("#portsCount");
 const highCount = qs("#highCount");
 const overallStatus = qs("#overallStatus");
+const settingsToggle = qs("#settingsToggle");
+const settingsDrawer = qs("#settingsDrawer");
+const globalAiEndpoint = qs("#globalAiEndpoint");
+const globalAiModel = qs("#globalAiModel");
+const globalAiKey = qs("#globalAiKey");
+const saveAiConfig = qs("#saveAiConfig");
+const deleteAiConfig = qs("#deleteAiConfig");
+const settingsStatus = qs("#settingsStatus");
 const codeAnalysisForm = qs("#codeAnalysisForm");
 const codeProjectPath = qs("#codeProjectPath");
 const codeAnalysisActive = qs("#codeAnalysisActive");
@@ -400,6 +432,11 @@ const codeOverallStatus = qs("#codeOverallStatus");
 const codeAnalysisSubtitle = qs("#codeAnalysisSubtitle");
 const codeAnalysisReportStatus = qs("#codeAnalysisReportStatus");
 const codeAnalysisReport = qs("#codeAnalysisReport");
+const codeAiEndpoint = qs("#codeAiEndpoint");
+const codeAiModel = qs("#codeAiModel");
+const codeAiApiKey = qs("#codeAiApiKey");
+const loadCodeAiModels = qs("#loadCodeAiModels");
+const codeAiModelStatus = qs("#codeAiModelStatus");
 
 let activeSource = null;
 let activeBadSource = null;
@@ -442,7 +479,11 @@ codeAnalysisForm.addEventListener("submit", async (event) => { event.preventDefa
 loadAiModels.addEventListener("click", async () => { await loadAvailableAiModels(aiEndpoint, aiApiKey, aiModel, aiModelStatus); });
 loadPerfAiModels.addEventListener("click", async () => { await loadAvailableAiModels(perfAiEndpoint, perfAiApiKey, perfAiModel, perfAiModelStatus); });
 loadWebAiModels.addEventListener("click", async () => { await loadAvailableAiModels(webAiEndpoint, webAiApiKey, webAiModel, webAiModelStatus); });
+loadCodeAiModels.addEventListener("click", async () => { await loadAvailableAiModels(codeAiEndpoint, codeAiApiKey, codeAiModel, codeAiModelStatus); });
 refreshReports.addEventListener("click", () => { loadReports(); loadSchedules(); });
+settingsToggle.addEventListener("click", () => { settingsDrawer.hidden = !settingsDrawer.hidden; });
+saveAiConfig.addEventListener("click", saveGlobalAiConfig);
+deleteAiConfig.addEventListener("click", deleteGlobalAiConfig);
 
 /* ── Scan ───────────────────────────────────────────────── */
 
@@ -681,7 +722,12 @@ async function startCodeAnalysis() {
   const response = await fetch("/api/code-analysis", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project_path: codeProjectPath.value.trim() }),
+    body: JSON.stringify({
+      project_path: codeProjectPath.value.trim(),
+      ai_endpoint: codeAiEndpoint.value.trim(),
+      ai_model: codeAiModel.value.trim(),
+      ai_api_key: codeAiApiKey.value.trim() || null,
+    }),
   });
 
   if (!response.ok) {
@@ -762,6 +808,22 @@ function renderCodeAnalysisReport(report) {
       ${buildFilterBar(vulns)}
       <div class="finding-list">${vulnList}</div>
     `)}
+
+    ${buildSection("Análise da IA", 0, (() => {
+      const ai = normalizeAiAnalysis(report.ai_analysis);
+      const tok = ai.token_usage || {};
+      return `
+        <div class="ai-usage">
+          <span>${ai.used_api ? "IA usada" : "Análise local"}</span>
+          <span>Modelo: ${escapeHtml(ai.model || "—")}</span>
+          <span>Prompt: ${tok.prompt_tokens || 0}</span>
+          <span>Resposta: ${tok.completion_tokens || 0}</span>
+          <span>Total: ${tok.total_tokens || 0}</span>
+        </div>
+        ${ai.fallback_reason ? `<p class="ai-note">${escapeHtml(ai.fallback_reason)}</p>` : ""}
+        <pre class="ai-analysis">${escapeHtml(ai.content || "Sem análise disponível.")}</pre>
+      `;
+    })(), true)}
   `;
 
   setupInteractivity(codeAnalysisReport);
@@ -1624,6 +1686,57 @@ function addPerformanceLine(kind, message) { addConsoleLine(performanceConsole, 
 function addWebsiteLine(kind, message) { addConsoleLine(websiteConsole, kind, message); }
 function addCodeLine(kind, message) { addConsoleLine(codeAnalysisConsole, kind, message); }
 
+/* ── Global AI config ───────────────────────────────────── */
+
+const AI_ALL_ENDPOINTS = () => [aiEndpoint, perfAiEndpoint, webAiEndpoint, codeAiEndpoint, globalAiEndpoint];
+const AI_ALL_KEYS = () => [aiApiKey, perfAiApiKey, webAiApiKey, codeAiApiKey, globalAiKey];
+const AI_ALL_MODELS_TEXT = () => [codeAiEndpoint]; // selects handled separately
+
+function loadGlobalAiConfig() {
+  const ep = localStorage.getItem("ai_endpoint");
+  const model = localStorage.getItem("ai_model");
+  const key = localStorage.getItem("ai_api_key");
+  if (!ep && !key) return;
+  if (ep) {
+    [aiEndpoint, perfAiEndpoint, webAiEndpoint, codeAiEndpoint, globalAiEndpoint].forEach((el) => { el.value = ep; });
+  }
+  if (model) {
+    [aiModel, perfAiModel, webAiModel].forEach((sel) => {
+      const opt = [...sel.options].find((o) => o.value === model);
+      if (!opt) { const o = new Option(model, model); sel.add(o); }
+      sel.value = model;
+    });
+    codeAiModel.value = model || codeAiModel.value;
+    globalAiModel.value = model;
+  }
+  if (key) {
+    [aiApiKey, perfAiApiKey, webAiApiKey, codeAiApiKey, globalAiKey].forEach((el) => { el.value = key; });
+  }
+}
+
+function saveGlobalAiConfig() {
+  const ep = globalAiEndpoint.value.trim();
+  const model = globalAiModel.value.trim();
+  const key = globalAiKey.value.trim();
+  if (ep) localStorage.setItem("ai_endpoint", ep);
+  if (model) localStorage.setItem("ai_model", model);
+  if (key) localStorage.setItem("ai_api_key", key);
+  else localStorage.removeItem("ai_api_key");
+  loadGlobalAiConfig();
+  settingsStatus.textContent = t("aiConfigSaved");
+  setTimeout(() => { settingsStatus.textContent = ""; }, 3000);
+}
+
+function deleteGlobalAiConfig() {
+  localStorage.removeItem("ai_endpoint");
+  localStorage.removeItem("ai_model");
+  localStorage.removeItem("ai_api_key");
+  [aiEndpoint, perfAiEndpoint, webAiEndpoint, codeAiEndpoint, globalAiEndpoint].forEach((el) => { el.value = "https://api.openai.com/v1/chat/completions"; });
+  [aiApiKey, perfAiApiKey, webAiApiKey, codeAiApiKey, globalAiKey].forEach((el) => { el.value = ""; });
+  settingsStatus.textContent = t("aiConfigDeleted");
+  setTimeout(() => { settingsStatus.textContent = ""; }, 3000);
+}
+
 /* ── Misc utils ─────────────────────────────────────────── */
 
 function normalizeAiAnalysis(value) {
@@ -1667,6 +1780,7 @@ document.querySelectorAll(".lang-btn").forEach((btn) => {
   btn.addEventListener("click", () => setLanguage(btn.dataset.lang));
 });
 setLanguage(currentLang);
+loadGlobalAiConfig();
 serviceStatus.textContent = "online";
 loadReports();
 loadSchedules();
