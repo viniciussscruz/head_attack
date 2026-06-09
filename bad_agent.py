@@ -3,6 +3,7 @@ import json
 import re
 import shutil
 import socket
+import ssl
 import subprocess
 import time
 import urllib.error
@@ -31,6 +32,9 @@ SAFE_TESTS = {
     "insecure_services": "Serviços inseguros ou sensíveis",
     "camera_rtsp": "Câmeras/DVR com RTSP aberto",
     "segmentation": "Sinais de falta de segmentação",
+    "bruteforce_readiness": "Superfícies prováveis de força bruta sem tentar senhas",
+    "reset_exposure": "Indícios de reset/reboot expostos sem acionar ações",
+    "upnp_exposure": "UPnP/SSDP ativo na rede",
 }
 SENSITIVE_PORTS = [21, 22, 23, 80, 139, 443, 445, 554, 1883, 5000, 5001, 5900, 8000, 8080, 8443, 8888, 9000, 3389]
 
@@ -84,6 +88,12 @@ async def run_bad_agent(
         evidence.extend(await test_camera_rtsp(agent_id, scanned_hosts, capture_rtsp_frame, emit))
     if "segmentation" in selected:
         evidence.extend(await test_segmentation(scanned_hosts, emit))
+    if "bruteforce_readiness" in selected:
+        evidence.extend(await test_bruteforce_readiness(scanned_hosts, emit))
+    if "reset_exposure" in selected:
+        evidence.extend(await test_reset_exposure(scanned_hosts, emit))
+    if "upnp_exposure" in selected:
+        evidence.extend(await test_upnp_exposure(emit))
 
     summary = summarize(evidence, len(hosts), started_ts)
     ai_analysis = await maybe_ai_analysis(ai_config, network=str(network), summary=summary, evidence=evidence)
@@ -260,6 +270,97 @@ async def test_segmentation(hosts: list[dict[str, Any]], emit: Callable[[dict[st
     return evidence
 
 
+async def test_bruteforce_readiness(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
+    await _emit(emit, "test", "Simulando avaliação de força bruta sem tentar credenciais.", {"test": "bruteforce_readiness"})
+    evidence = []
+    brute_ports = {
+        21: ("FTP", "high"),
+        22: ("SSH", "medium"),
+        23: ("Telnet", "critical"),
+        3389: ("RDP", "high"),
+        5900: ("VNC", "high"),
+    }
+    for host in hosts:
+        ip = host["ip"]
+        for port in _ports(host, set(brute_ports)):
+            service, severity = brute_ports[port.port]
+            evidence.append(
+                AgentEvidence(
+                    target=f"{ip}:{port.port}",
+                    title=f"{service} seria alvo comum de força bruta",
+                    severity=severity,
+                    detail="O agente não tentou usuário/senha, mas este serviço costuma ser atacado por tentativas automatizadas.",
+                    proof=f"Conexão TCP aceita em {ip}:{port.port}; nenhuma credencial foi enviada.",
+                    correction="Permitir acesso apenas por VPN/Tailscale/rede administrativa, usar senha forte/chaves/MFA quando disponível e ativar bloqueio por tentativas.",
+                )
+            )
+
+        for port in _ports(host, HTTP_PORTS):
+            sample = await fetch_http_sample(ip, port.port)
+            if sample and looks_like_login(sample["body"]):
+                evidence.append(
+                    AgentEvidence(
+                        target=f"{ip}:{port.port}",
+                        title="Tela de login exposta a tentativas manuais/automatizadas",
+                        severity="medium",
+                        detail="Foi encontrada uma superfície de login web. Nenhuma senha foi testada.",
+                        proof=f"Página contém campos/termos de login. Status: {sample['status'] or 'desconhecido'}",
+                        correction="Usar senha forte, desativar usuário padrão, limitar origem por rede/VLAN e verificar se há bloqueio por tentativas.",
+                        links=[{"label": "Abrir painel", "url": _url(ip, port.port)}],
+                    )
+                )
+    return evidence
+
+
+async def test_reset_exposure(hosts: list[dict[str, Any]], emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
+    await _emit(emit, "test", "Procurando indícios de reset/reboot sem acionar endpoints.", {"test": "reset_exposure"})
+    evidence = []
+    reset_pattern = re.compile(r"\b(reset|reboot|restart|factory|restore|reiniciar|restaurar|padr[aã]o de f[aá]brica)\b", re.I)
+    for host in hosts:
+        ip = host["ip"]
+        for port in _ports(host, HTTP_PORTS):
+            sample = await fetch_http_sample(ip, port.port)
+            if not sample:
+                continue
+            body = sample["body"]
+            if reset_pattern.search(body):
+                evidence.append(
+                    AgentEvidence(
+                        target=f"{ip}:{port.port}",
+                        title="Painel menciona reset/reboot",
+                        severity="medium",
+                        detail="A página inicial/painel contém termos de reset/reboot. O agente não chamou rotas de ação.",
+                        proof="Termos sensíveis encontrados no HTML retornado pela página acessível.",
+                        correction="Confirmar que ações de reset/reboot exigem autenticação, token anti-CSRF e não aceitam GET direto.",
+                        links=[{"label": "Abrir painel", "url": _url(ip, port.port)}],
+                    )
+                )
+    return evidence
+
+
+async def test_upnp_exposure(emit: Callable[[dict[str, Any]], Any]) -> list[AgentEvidence]:
+    await _emit(emit, "test", "Enviando descoberta SSDP única para detectar UPnP.", {"test": "upnp_exposure"})
+    devices = await ssdp_discover()
+    evidence = []
+    for device in devices:
+        server = device.get("server") or "servidor não informado"
+        location = device.get("location") or ""
+        target = device.get("address") or "rede"
+        severity = "high" if "InternetGatewayDevice" in device.get("st", "") else "medium"
+        evidence.append(
+            AgentEvidence(
+                target=target,
+                title="UPnP/SSDP respondeu na rede",
+                severity=severity,
+                detail="UPnP pode permitir abertura automática de portas e descoberta de dispositivos. SSDP é multicast local e reflete a rede onde este PC está conectado.",
+                proof=f"ST: {device.get('st', 'desconhecido')}; Server: {server}",
+                correction="Desativar UPnP no roteador principal e revisar dispositivos que anunciam serviços SSDP.",
+                links=[{"label": "Descrição UPnP", "url": location}] if location.startswith(("http://", "https://")) else [],
+            )
+        )
+    return evidence
+
+
 async def rtsp_options(ip: str, port: int) -> str | None:
     def probe() -> str | None:
         request = f"OPTIONS rtsp://{ip}:{port}/ RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: HeadAttackSafeProbe/1.0\r\n\r\n"
@@ -274,6 +375,92 @@ async def rtsp_options(ip: str, port: int) -> str | None:
         return " ".join(part for part in [status, public] if part)[:220] or None
 
     return await asyncio.to_thread(probe)
+
+
+async def fetch_http_sample(ip: str, port: int) -> dict[str, str] | None:
+    def fetch() -> dict[str, str] | None:
+        scheme = _scheme(port)
+        request = f"GET / HTTP/1.1\r\nHost: {ip}\r\nUser-Agent: HeadAttackSafeProbe/1.0\r\nConnection: close\r\n\r\n"
+        try:
+            with socket.create_connection((ip, port), timeout=1.5) as sock:
+                if scheme == "https":
+                    context = ssl.create_default_context()
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    with context.wrap_socket(sock, server_hostname=ip) as tls_sock:
+                        tls_sock.sendall(request.encode("ascii"))
+                        raw = tls_sock.recv(8192)
+                else:
+                    sock.sendall(request.encode("ascii"))
+                    raw = sock.recv(8192)
+        except OSError:
+            return None
+        text = raw.decode("utf-8", errors="replace")
+        status = text.splitlines()[0] if text else ""
+        return {"status": status[:120], "body": text[:8192]}
+
+    return await asyncio.to_thread(fetch)
+
+
+def looks_like_login(body: str) -> bool:
+    login_terms = ["password", "senha", "login", "username", "usuario", "usuário", "admin"]
+    lowered = body.lower()
+    return "<input" in lowered and any(term in lowered for term in login_terms)
+
+
+async def ssdp_discover() -> list[dict[str, str]]:
+    def discover() -> list[dict[str, str]]:
+        message = "\r\n".join(
+            [
+                "M-SEARCH * HTTP/1.1",
+                "HOST: 239.255.255.250:1900",
+                'MAN: "ssdp:discover"',
+                "MX: 1",
+                "ST: ssdp:all",
+                "",
+                "",
+            ]
+        ).encode("ascii")
+        devices: list[dict[str, str]] = []
+        seen = set()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+                sock.settimeout(1.5)
+                sock.sendto(message, ("239.255.255.250", 1900))
+                while True:
+                    try:
+                        raw, address = sock.recvfrom(4096)
+                    except socket.timeout:
+                        break
+                    text = raw.decode("utf-8", errors="replace")
+                    headers = parse_ssdp_headers(text)
+                    key = (address[0], headers.get("st", ""), headers.get("location", ""))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    devices.append(
+                        {
+                            "address": address[0],
+                            "st": headers.get("st", ""),
+                            "server": headers.get("server", ""),
+                            "location": headers.get("location", ""),
+                        }
+                    )
+        except OSError:
+            return []
+        return devices[:20]
+
+    return await asyncio.to_thread(discover)
+
+
+def parse_ssdp_headers(text: str) -> dict[str, str]:
+    headers = {}
+    for line in text.splitlines()[1:]:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        headers[key.strip().lower()] = value.strip()
+    return headers
 
 
 async def capture_rtsp_snapshot(

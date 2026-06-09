@@ -40,6 +40,9 @@ It can run these safe checks:
 - Insecure or sensitive services such as FTP, Telnet, SMB, MQTT, VNC, RDP, and RTSP.
 - Camera/DVR RTSP exposure.
 - Segmentation weakness signals, such as cameras and SMB appearing in the same reachable surface.
+- Brute-force readiness signals without sending credentials.
+- Reset/reboot exposure signals without requesting reset or reboot URLs.
+- UPnP/SSDP exposure with a single local multicast discovery probe.
 
 Safety limits:
 
@@ -47,7 +50,9 @@ Safety limits:
 - No exploit execution.
 - No default-password attempts.
 - No configuration changes.
+- No reset, reboot, factory restore, or denial-of-service actions.
 - RTSP frame capture is opt-in and only attempts a single unauthenticated frame from the base RTSP URL.
+- UPnP/SSDP discovery reflects the local network where the app is running; it does not inspect a remote Tailscale subnet through multicast.
 
 The AI fields are optional. When an OpenAI-compatible chat completions endpoint, model, and API key are supplied, the app sends only summarized findings and asks for a defensive remediation-focused explanation. The API key is not saved to disk. If no key is supplied, the app generates a local summary.
 

@@ -23,6 +23,7 @@ The format follows the spirit of [Keep a Changelog](https://keepachangelog.com/e
 - `test_bad_agent` tab for controlled adversary simulation on authorized private networks.
 - Optional OpenAI-compatible AI analysis for defensive interpretation of findings.
 - Safe RTSP exposure validation with opt-in single-frame capture when an unauthenticated stream is reachable.
+- Heavy simulation checks for brute-force readiness, reset/reboot exposure indicators, and UPnP/SSDP exposure without performing destructive actions.
 
 ### Changed
 
